@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -150,6 +151,22 @@ def parse(html: str) -> list[Eintrag]:
     return eintraege
 
 
+# Das OE-Dashboard ist ein 494-Byte-Geruest, das die Tabellen per jQuery
+# aus create_html.php nachlaedt. Findet der Parser in der Startseite nichts,
+# folgt er solchen PHP-Verweisen (hoechstens MAX_FOLGEN).
+_PHP = re.compile(r"""['"(]\s*([A-Za-z0-9_./-]+\.php)""")
+MAX_FOLGEN = 3
+
+
+def nachlade_ziele(html: str) -> list[str]:
+    """PHP-Seiten, die eine Startseite per Script/Frame nachlaedt."""
+    ziele = []
+    for treffer in _PHP.findall(html):
+        if treffer not in ziele:
+            ziele.append(treffer)
+    return ziele[:MAX_FOLGEN]
+
+
 def _gleich(a: str, b: str) -> bool:
     return a.strip().upper() == b.strip().upper()
 
@@ -177,6 +194,9 @@ class DashboardLookup:
         self.last_fetch: Optional[float] = None
         self.hits = 0
         self.misses = 0
+        # Startseite -> Seite, in der die Tabelle wirklich steckt. Spart ab
+        # dem zweiten Mal den Umweg ueber das Geruest.
+        self._ziel: dict[str, str] = {}
 
     async def eintraege(self, url: str, force: bool = False) -> list[Eintrag]:
         async with self._lock:
@@ -185,16 +205,26 @@ class DashboardLookup:
                     and time.monotonic() - zeit < CACHE_SECONDS):
                 return daten
             import aiohttp
+            from urllib.parse import urljoin
             try:
                 timeout = aiohttp.ClientTimeout(total=FETCH_TIMEOUT)
                 async with aiohttp.ClientSession(timeout=timeout) as s:
-                    async with s.get(url, headers={
-                            "User-Agent": "dmo2tmo-svxbridge"}) as r:
-                        if r.status != 200:
-                            raise RuntimeError(f"HTTP {r.status}")
-                        roh = await r.content.read(MAX_BYTES)
-                html = roh.decode(r.charset or "utf-8", errors="replace")
-                daten = parse(html)
+                    daten = []
+                    bekannt = self._ziel.get(url)
+                    if bekannt:
+                        daten = parse(await self._hole(s, bekannt))
+                    if not daten:
+                        html = await self._hole(s, url)
+                        daten = parse(html)
+                        if daten:
+                            self._ziel[url] = url
+                        for ziel in ([] if daten else nachlade_ziele(html)):
+                            ziel = urljoin(url, ziel)
+                            daten = parse(await self._hole(s, ziel))
+                            if daten:
+                                self._ziel[url] = ziel
+                                log.info("Dashboard-Daten kommen aus %s", ziel)
+                                break
             except (aiohttp.ClientError, asyncio.TimeoutError,
                     RuntimeError, OSError) as exc:
                 text = f"{url}: {exc or type(exc).__name__}"
@@ -206,6 +236,15 @@ class DashboardLookup:
             self.last_fetch = time.time()
             self._cache = (time.monotonic(), url, daten)
             return daten
+
+    @staticmethod
+    async def _hole(session, url: str) -> str:
+        async with session.get(url, headers={
+                "User-Agent": "dmo2tmo-svxbridge"}) as r:
+            if r.status != 200:
+                raise RuntimeError(f"{url}: HTTP {r.status}")
+            roh = await r.content.read(MAX_BYTES)
+            return roh.decode(r.charset or "utf-8", errors="replace")
 
     async def issi_fuer(self, url: str, gateway: str,
                         max_age: float) -> Optional[Eintrag]:

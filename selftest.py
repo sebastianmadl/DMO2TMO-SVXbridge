@@ -428,6 +428,14 @@ def test_dashboard():
     check("zu alt -> nichts", od.finde(e, "OE1XCS-T", 5, jetzt=t) is None)
     check("unbekanntes Gateway -> nichts", od.finde(e, "OE9XXX-R", 30, jetzt=t) is None)
 
+    geruest = """<html><head><script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<script type="text/javascript">setInterval(function(){$('#x').load('create_html.php?'+Math.random());},5000);</script>
+</head><body><div id="x"></div></body></html>"""
+    check("Geruest: kein Lastheard drin", od.parse(geruest) == [])
+    check("Geruest: folgt create_html.php",
+          od.nachlade_ziele(geruest) == ["create_html.php"],
+          str(od.nachlade_ziele(geruest)))
+
     raw = _example_raw()
     _abgelehnt("dashboard_url ohne http wird abgelehnt",
                {**raw, "tetra_fw": {"dashboard_url": "dash.example.org"}})
