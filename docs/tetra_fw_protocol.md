@@ -77,7 +77,7 @@ Rohe Formatstrings aus dem Binary:
 |---|---|---|
 | 1 `gateway`   | Gateway | Node-/Gateway-Rufzeichen, z.B. `OE4SXM-R` (`GATEWAY_CALL`) |
 | 2 `comment`   | Comment | Standorttext, z.B. `Tetra-OE4SXM/430.0000` (`GATEWAY_COMMENT`) |
-| 3 `zeit`      | Time    | Zeitstempel `%d.%m.%y %H:%M:%S` (lokale Zeit des Gateways) |
+| 3 `zeit`      | Time    | Zeitstempel `%d.%m.%Y %H:%M:%S` (lokale Zeit des Gateways). Am OE-Dashboard stehen die anderen Gateways mit vierstelligem Jahr (`09.11.2026 12:41:19`), darum so; die fruehere Annahme `%y` passte nicht. |
 | 4 `call`      | Call    | Rufzeichen des **Sprechers** (nicht des Gateways) |
 | —             | Type    | literal `VOICE` / `POS` / `GPS` / `GC` |
 | —             | TG      | literal `#232` (bzw. `#0` bei GC) |

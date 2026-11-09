@@ -995,7 +995,7 @@ def test_tetra_fw():
     zeile = fw.voice_line("OE4SXM-R", "Tetra-OE4SXM/430.0000", "OE4SXM",
                           232, 2320998, ts)
     check("VOICE-Zeile wie das Original",
-          zeile == "OE4SXM-R,Tetra-OE4SXM/430.0000,09.11.26 12:34:56,"
+          zeile == "OE4SXM-R,Tetra-OE4SXM/430.0000,09.11.2026 12:34:56,"
                    "OE4SXM,VOICE,#232,2320998,,,\n", repr(zeile))
     zeile = fw.voice_line("OE4SXM-R", "", "", 232, 2320998, ts)
     check("unbekannt -> NO USER", ",NO USER,VOICE," in zeile, repr(zeile))

@@ -25,7 +25,11 @@ Chronologie der Arbeiten. Neueste oben.
   confgen schreibt `node_info.json` + `NODE_INFO_FILE`. WebUI System ->
   „Node-Info am Reflektor“, `/api/nodeinfo`, startet svxlink neu.
   Ob das OE-Dashboard die Spalte „Comment“ wirklich aus `nodeLocation`
-  liest, ist noch zu pruefen.
+  liest, ist noch zu pruefen. Das Tetra-Wiki sagt zu node_info nichts.
+- Node-Info als ausklappbares Formular (Allgemein, Standort, Sender,
+  Empfaenger, JSON) - Formular und JSON zeigen dasselbe Objekt.
+- Lastheard-Zeit mit vierstelligem Jahr (`09.11.2026 12:51:22`) wie bei
+  den anderen Gateways am OE-Dashboard.
 - **Offen, nur live pruefbar:** ob der Server dedupliziert, ob VOICE zu
   Sprechbeginn das ist, was das Dashboard erwartet.
 

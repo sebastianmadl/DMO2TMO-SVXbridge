@@ -40,7 +40,10 @@ def _feld(text) -> str:
 
 
 def zeitstempel(ts: Optional[float] = None) -> str:
-    return time.strftime("%d.%m.%y %H:%M:%S", time.localtime(ts))
+    # Vierstelliges Jahr wie bei den anderen Gateways am OE-Dashboard -
+    # dort steht "09.11.2026 12:41:19"; mit "09.11.26" passte unsere Zeile
+    # in eine Zeile und tanzte aus der Reihe.
+    return time.strftime("%d.%m.%Y %H:%M:%S", time.localtime(ts))
 
 
 def voice_line(gateway: str, comment: str, call: str, tg: int, issi: int,

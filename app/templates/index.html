@@ -196,18 +196,84 @@
     <div class="form">
       <label><span>Gateway (Node-Rufzeichen)</span>
         <input id="ni-call" disabled></label>
-      <label><span>Comment / Standort (nodeLocation)</span>
+      <label><span>Standort / Comment (nodeLocation)</span>
         <input id="ni-location" placeholder="Tetra-OE4SXM/430.0000" autocomplete="off"></label>
       <label><span>Sysop</span>
         <input id="ni-sysop" placeholder="OE4SXM" autocomplete="off"></label>
-      <label><span>Weitere Felder (JSON, optional)</span>
-        <textarea id="ni-extra" rows="3" placeholder='{"locator": "JN87"}'></textarea></label>
+    </div>
+
+    <details class="ni-group">
+      <summary>Allgemein</summary>
+      <div class="form">
+        <label><span>Art des Knotens (nodeClass)</span>
+          <select data-ni="nodeClass">
+            <option value="">–</option>
+            <option value="bridge">bridge</option>
+            <option value="repeater">repeater</option>
+            <option value="simplex">simplex</option>
+            <option value="hotspot">hotspot</option>
+          </select></label>
+        <label class="switch"><span>Am Dashboard verstecken (hidden)</span>
+          <input type="checkbox" data-ni="hidden" data-ni-type="bool"></label>
+      </div>
+    </details>
+
+    <details class="ni-group">
+      <summary>Standort (qth)</summary>
+      <div class="form">
+        <label><span>Name</span><input data-ni="qth.0.name" placeholder="Tetra-OE4SXM"></label>
+        <label><span>Breite (dezimal)</span><input data-ni="qth.0.pos.lat" data-ni-type="num" inputmode="decimal" placeholder="48.2717"></label>
+        <label><span>Länge (dezimal)</span><input data-ni="qth.0.pos.long" data-ni-type="num" inputmode="decimal" placeholder="16.4152"></label>
+        <label><span>Locator</span><input data-ni="qth.0.pos.loc" placeholder="JN88EG"></label>
+      </div>
+    </details>
+
+    <details class="ni-group">
+      <summary>Sender (qth → tx A)</summary>
+      <div class="form">
+        <label><span>Name</span><input data-ni="qth.0.tx.A.name" placeholder="TETRA DMO"></label>
+        <label><span>Frequenz (MHz)</span><input data-ni="qth.0.tx.A.freq" data-ni-type="num" inputmode="decimal" placeholder="430.0000"></label>
+        <label><span>Leistung (W)</span><input data-ni="qth.0.tx.A.pwr" data-ni-type="num" inputmode="decimal"></label>
+        <label><span>CTCSS (Hz)</span><input data-ni="qth.0.tx.A.ctcssFreq" data-ni-type="num" inputmode="decimal"></label>
+        <label><span>Antenne</span><input data-ni="qth.0.tx.A.ant.0.comment" placeholder="Diamond X30"></label>
+        <label><span>Antennenhöhe (m)</span><input data-ni="qth.0.tx.A.ant.0.height" data-ni-type="num" inputmode="decimal"></label>
+        <label><span>Richtung (°, leer = rund)</span><input data-ni="qth.0.tx.A.ant.0.dir" data-ni-type="num" inputmode="decimal"></label>
+      </div>
+    </details>
+
+    <details class="ni-group">
+      <summary>Empfänger (qth → rx A)</summary>
+      <div class="form">
+        <label><span>Name</span><input data-ni="qth.0.rx.A.name" placeholder="TETRA DMO"></label>
+        <label><span>Frequenz (MHz)</span><input data-ni="qth.0.rx.A.freq" data-ni-type="num" inputmode="decimal" placeholder="430.0000"></label>
+        <label><span>Squelch-Art</span>
+          <select data-ni="qth.0.rx.A.sqlType">
+            <option value="">–</option>
+            <option value="CTCSS">CTCSS</option><option value="COS">COS</option>
+            <option value="VOX">VOX</option><option value="SERIAL">SERIAL</option>
+            <option value="EVDEV">EVDEV</option><option value="GPIO">GPIO</option>
+          </select></label>
+        <label><span>CTCSS (Hz, mehrere mit Komma)</span><input data-ni="qth.0.rx.A.ctcssFreq" data-ni-type="numlist" inputmode="decimal"></label>
+      </div>
+    </details>
+
+    <details class="ni-group">
+      <summary>Erweitert: JSON</summary>
+      <p class="hint">Alles, was oben nicht vorkommt (z.B. <code>toneToTalkgroup</code>,
+        weitere Standorte oder Antennen), hier direkt eintragen. Formular und
+        JSON bleiben gleich, egal wo man ändert.</p>
+      <textarea id="ni-extra" rows="8" spellcheck="false"
+        style="font-family: ui-monospace, Menlo, monospace; font-size: 12px"></textarea>
+    </details>
+
+    <div class="form" style="margin-top:12px">
       <button class="btn primary" id="ni-save">Übernehmen</button>
     </div>
-    <p class="hint">Das schickt svxlink beim Anmelden als Node-Info an den
-      Reflektor (<code>NODE_INFO_FILE</code>); Dashboards zeigen daraus den
-      Standorttext. Das Node-Rufzeichen selbst ist der Login am Reflektor und
-      steht in der Reflektor-Konfiguration. Übernehmen startet svxlink neu.</p>
+    <p class="hint">svxlink schickt das beim Anmelden als Node-Info an den
+      Reflektor (<code>NODE_INFO_FILE</code>). Der Reflektor stellt es unverändert
+      in seine Statusabfrage, daraus lesen die Dashboards. Welche Felder ein
+      Dashboard anzeigt, entscheidet das Dashboard. Leere Felder werden
+      weggelassen. Übernehmen startet svxlink neu.</p>
     <div id="ni-out"></div>
   </div>
 

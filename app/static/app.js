@@ -653,6 +653,78 @@ $("tetra-save")?.addEventListener("click", async () => {
   } catch (e) { note($("tetra-out"), e.message, true); }
 });
 
+/* Node-Info: Formular und JSON zeigen dasselbe Objekt. Die Felder tragen
+   ihren Pfad im JSON (data-ni="qth.0.tx.A.freq"); leere Felder fliegen
+   raus, samt leer gewordener Eltern. Was das Formular nicht kennt, bleibt
+   im JSON unangetastet. */
+const niFields = () => [...document.querySelectorAll("[data-ni]")];
+function niGet(obj, path) {
+  return path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
+}
+function niSet(obj, path, value) {
+  const keys = path.split(".");
+  const stack = [obj];
+  let o = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const k = keys[i], next = keys[i + 1];
+    if (o[k] == null || typeof o[k] !== "object") {
+      if (value === undefined) return;
+      o[k] = /^\d+$/.test(next) ? [] : {};
+    }
+    o = o[k]; stack.push(o);
+  }
+  const last = keys[keys.length - 1];
+  if (value === undefined) {
+    if (Array.isArray(o)) o[last] = undefined; else delete o[last];
+    // leer gewordene Container von unten her wegraeumen
+    for (let i = keys.length - 2; i >= 0; i--) {
+      const kid = stack[i + 1], parent = stack[i];
+      const leer = Array.isArray(kid) ? kid.every((x) => x === undefined || x === null)
+                                      : Object.keys(kid).length === 0;
+      if (!leer) break;
+      if (Array.isArray(parent)) parent[keys[i]] = undefined; else delete parent[keys[i]];
+    }
+  } else {
+    o[last] = value;
+  }
+}
+function niRead(el) {
+  const t = el.dataset.niType;
+  if (t === "bool") return el.checked ? true : undefined;
+  const v = el.value.trim();
+  if (!v) return undefined;
+  if (t === "num") { const n = Number(v.replace(",", ".")); return Number.isFinite(n) ? n : v; }
+  if (t === "numlist") return v.split(/[;,\s]+/).filter(Boolean).map((x) => Number(x));
+  return v;
+}
+function niFill(obj) {
+  niFields().forEach((el) => {
+    const v = niGet(obj, el.dataset.ni);
+    if (el.dataset.niType === "bool") el.checked = v === true;
+    else if (Array.isArray(v)) el.value = v.join(", ");
+    else el.value = v == null ? "" : String(v);
+  });
+}
+function niParseExtra() {
+  const t = $("ni-extra").value.trim();
+  if (!t) return {};
+  const o = JSON.parse(t);
+  if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error("JSON muss ein Objekt {…} sein");
+  return o;
+}
+function niClean(obj) {
+  // undefined-Luecken in Arrays (vom Loeschen) wegraeumen
+  return JSON.parse(JSON.stringify(obj, (k, v) =>
+    Array.isArray(v) ? v.filter((x) => x !== undefined && x !== null) : v));
+}
+function niFormToJson() {
+  let obj;
+  try { obj = niParseExtra(); } catch (e) { note($("ni-out"), "JSON: " + e.message, true); return; }
+  niFields().forEach((el) => niSet(obj, el.dataset.ni, niRead(el)));
+  obj = niClean(obj);
+  $("ni-extra").value = Object.keys(obj).length ? JSON.stringify(obj, null, 2) : "";
+  note($("ni-out"), "");
+}
 async function loadNodeInfo() {
   if (!window.MAY.system || !$("ni-location") || $("ni-location").dataset.loaded) return;
   try {
@@ -660,12 +732,22 @@ async function loadNodeInfo() {
     $("ni-call").value = d.callsign || "";
     $("ni-location").value = d.node_location || "";
     $("ni-sysop").value = d.sysop || "";
-    $("ni-extra").value = d.node_info_extra || "";
+    let obj = {};
+    try { obj = d.node_info_extra ? JSON.parse(d.node_info_extra) : {}; } catch (e) { /* bleibt roh */ }
+    $("ni-extra").value = Object.keys(obj).length ? JSON.stringify(obj, null, 2) : (d.node_info_extra || "");
+    niFill(obj);
     $("ni-location").dataset.loaded = "1";
   } catch (e) { note($("ni-out"), e.message, true); }
 }
+niFields().forEach((el) => el.addEventListener(
+  el.tagName === "INPUT" && el.type !== "checkbox" ? "input" : "change", niFormToJson));
+$("ni-extra")?.addEventListener("input", () => {
+  try { niFill(niParseExtra()); note($("ni-out"), ""); }
+  catch (e) { note($("ni-out"), "JSON: " + e.message, true); }
+});
 $("ni-save")?.addEventListener("click", async () => {
   try {
+    niParseExtra();
     const d = await post("/api/nodeinfo", {
       node_location: $("ni-location").value,
       sysop: $("ni-sysop").value,
