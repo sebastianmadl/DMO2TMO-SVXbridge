@@ -67,6 +67,12 @@ TetraLogic wertet empfangene State-Events nicht aus - sie ueberschreibt
 ein `toDo`. Eine SDS von uns kommt bei einer TetraLogic-Station also erst
 an, wenn das upstream behoben ist; zwischen zwei UsrpLogic-Knoten geht es.
 
+**Lastheard im OE-Verbund (2026-11-09):** der OE-Verbund nutzt kein
+tetra-contrib, Lastheard laeuft ueber UDP 5220 (`tetra_fw_server`). Gebaut
+in `app/tetra_fw.py`, Config `tetra_fw`, WebUI System -> „Lastheard
+(TETRA-AUSTRIA)“. Protokoll in `docs/tetra_fw_protocol.md`, Stand in
+`WORKLOG.md`.
+
 ---
 
 # 📋 TODO (svxtetra, Stand 2026-09-08)

@@ -197,6 +197,8 @@ async def amain(path: str) -> int:
         asyncio.create_task(ticker(router, stop), name="ticker"),
     ]
 
+    router.tetra_fw.start_beacon()
+
     await stop.wait()
     log.info("Beende...")
     # Reihenfolge zaehlt: erst die Quellen (die schliessen laufende Rufe
@@ -208,6 +210,7 @@ async def amain(path: str) -> int:
         log.warning("Sendequeue beim Beenden nicht leer - moeglicherweise "
                     "bleibt ein Gruppenruf auf dem Server offen")
     await client.stop()
+    router.tetra_fw.close()
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)

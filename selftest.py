@@ -948,12 +948,90 @@ def test_web():
     check("since liefert nur Neues", buf.since(buf.last_seq) == [])
 
 
+def test_tetra_fw():
+    print("Lastheard TETRA-AUSTRIA (tetra_fw):")
+    import asyncio
+    import socket
+    from app import tetra_fw as fw
+
+    ts = time.mktime((2026, 11, 9, 12, 34, 56, 0, 0, -1))
+    zeile = fw.voice_line("OE4SXM-R", "Tetra-OE4SXM/430.0000", "OE4SXM",
+                          232, 2320998, ts)
+    check("VOICE-Zeile wie das Original",
+          zeile == "OE4SXM-R,Tetra-OE4SXM/430.0000,09.11.26 12:34:56,"
+                   "OE4SXM,VOICE,#232,2320998,,,\n", repr(zeile))
+    zeile = fw.voice_line("OE4SXM-R", "", "", 232, 2320998, ts)
+    check("unbekannt -> NO USER", ",NO USER,VOICE," in zeile, repr(zeile))
+    zeile = fw.voice_line("OE4SXM-R", "a,b", "X\nY", 232, 1, ts)
+    check("Komma/Umbruch verschiebt keine Spalten",
+          zeile.count(",") == 9 and zeile.count("\n") == 1, repr(zeile))
+    zeile = fw.pos_line("OE4SXM-R", "c", "OE4SXM-R", 232, 2320997,
+                        "4816.82", "01624.91", ts)
+    check("POS: Laenge vor Breite wie im Original",
+          zeile.endswith(",POS,#232,2320997,,E;01624.91;N;4816.82;000;,\n"),
+          repr(zeile))
+
+    raw = _example_raw()
+    for name, fw_raw in (
+        ("Komma im Comment", {"gateway_comment": "Wien, 430"}),
+        ("Breite falsch", {"gateway_lat": "48.16", "gateway_lon": "01624.91"}),
+        ("Laenge falsch", {"gateway_lat": "4816.82", "gateway_lon": "1624.91"}),
+        ("nur Breite", {"gateway_lat": "4816.82"}),
+        ("Port 0", {"port": 0}),
+    ):
+        _abgelehnt(f"tetra_fw: {name} wird abgelehnt",
+                   {**raw, "tetra_fw": fw_raw})
+    cfg = cfgmod.from_dict({**raw, "tetra_fw": {
+        "enabled": True, "gateway_lat": "4816.82", "gateway_lon": "01624.91"}})
+    check("tetra_fw per Default aus", not cfgmod.from_dict(raw).tetra_fw.enabled)
+    check("Port per Default 5220", cfg.tetra_fw.port == 5220)
+
+    # Gegen einen echten UDP-Empfaenger auf localhost
+    empf = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    empf.bind(("127.0.0.1", 0))
+    empf.settimeout(2)
+    cfg.reflectors[0].host = "127.0.0.1"
+    cfg.tetra_fw.port = empf.getsockname()[1]
+    sender = fw.TetraFwSender(lambda: cfg)
+    check("Gateway-Call faellt auf Reflektor-Rufzeichen zurueck",
+          sender.gateway_call() == cfg.reflectors[0].callsign)
+    old_interval = fw.BEACON_INTERVAL
+    fw.BEACON_INTERVAL = 0
+
+    async def lauf():
+        ok = await sender.voice(2320998, "OE4SXM")
+        bake = await sender.beacon()
+        ohne = await sender.voice(None, "")
+        return ok, bake, ohne
+    try:
+        ok, bake, ohne = asyncio.run(lauf())
+    finally:
+        fw.BEACON_INTERVAL = old_interval
+    zeilen = []
+    try:
+        while True:
+            zeilen.append(empf.recv(2048).decode())
+            empf.settimeout(0.2)
+    except socket.timeout:
+        pass
+    empf.close()
+    sender.close()
+    check("VOICE gesendet", ok and zeilen and ",OE4SXM,VOICE,#2321,2320998,"
+          in zeilen[0], repr(zeilen[:1]))
+    check("Bake 6x", bake == 6 and len(zeilen) == 7, f"{bake} / {len(zeilen)}")
+    check("ohne ISSI nichts gemeldet", ohne is False)
+    cfg.tetra_fw.enabled = False
+    check("abgeschaltet sendet nicht",
+          asyncio.run(sender.voice(2320998, "X")) is False)
+
+
 def main() -> int:
     for test in (
         test_lengths, test_roundtrip, test_traffic_bits, test_sds,
         test_usrp, test_confgen, test_gain, test_web,
         test_schedule_grace, test_schedule_hard, test_schedule_cap,
         test_schedule_overnight, test_config, test_router_tetra,
+        test_tetra_fw,
     ):
         test()
         print()

@@ -9,6 +9,7 @@ Datenmodell umkrempeln.
 from __future__ import annotations
 
 import copy
+import re
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
@@ -263,6 +264,53 @@ class TetraConfig:
     sds_forward: bool = True
 
 
+# Positionsformat wie im tetra_link_gw.conf: Breite ggmm.mm, Laenge gggmm.mm
+# (APRS-Stil, ohne Hemisphaere - der OE-Verbund kennt nur N/E).
+_LAT = re.compile(r"^\d{4}\.\d{2}$")
+_LON = re.compile(r"^\d{5}\.\d{2}$")
+TETRA_FW_PORT = 5220
+
+
+@dataclass
+class TetraFwConfig:
+    """Lastheard im Format des TETRA-AUSTRIA-Verbunds (tetra_fw_server).
+
+    UDP-Textzeilen an den Host des Reflektors, Port 5220 - getrennt vom
+    svxlink-Audio. Protokoll: docs/tetra_fw_protocol.md.
+
+    gateway_call: Spalte "Gateway" am Dashboard. Leer = Node-Rufzeichen
+        des aktiven Reflektors.
+    gateway_comment: Spalte "Comment", z.B. "Tetra-OE4SXM/430.0000".
+    gateway_lat/lon: eigene Position fuer die Start-Bake (ggmm.mm bzw.
+        gggmm.mm). Leer = keine Bake.
+    """
+    enabled: bool = False
+    gateway_call: str = ""
+    gateway_comment: str = ""
+    gateway_lat: str = ""
+    gateway_lon: str = ""
+    port: int = TETRA_FW_PORT
+
+    def validate(self) -> None:
+        for name in ("gateway_call", "gateway_comment"):
+            wert = getattr(self, name)
+            # Die Zeile ist komma-getrennt - ein Komma verschiebt am
+            # Dashboard alle Spalten.
+            if any(z in wert for z in ",\r\n"):
+                raise ConfigError(f"tetra_fw.{name}: kein Komma und kein "
+                                  "Zeilenumbruch erlaubt")
+        if self.gateway_lat and not _LAT.match(self.gateway_lat):
+            raise ConfigError("tetra_fw.gateway_lat: Format ggmm.mm, "
+                              "z.B. 4816.82")
+        if self.gateway_lon and not _LON.match(self.gateway_lon):
+            raise ConfigError("tetra_fw.gateway_lon: Format gggmm.mm, "
+                              "z.B. 01624.91")
+        if bool(self.gateway_lat) != bool(self.gateway_lon):
+            raise ConfigError("tetra_fw: Breite und Laenge nur gemeinsam")
+        if not 1 <= int(self.port) <= 65535:
+            raise ConfigError("tetra_fw.port: 1 bis 65535")
+
+
 @dataclass
 class StatusServerConfig:
     enabled: bool = True
@@ -278,12 +326,14 @@ class Config:
     audio: AudioConfig = field(default_factory=AudioConfig)
     sds_control: SdsControlConfig = field(default_factory=SdsControlConfig)
     tetra: TetraConfig = field(default_factory=TetraConfig)
+    tetra_fw: TetraFwConfig = field(default_factory=TetraFwConfig)
     status_server: StatusServerConfig = field(default_factory=StatusServerConfig)
     reflectors: list[Reflector] = field(default_factory=list)
     routes: list[Route] = field(default_factory=list)
 
     def validate(self) -> None:
         self.audio.validate()
+        self.tetra_fw.validate()
         if not self.brew.issi:
             raise ConfigError("brew.issi fehlt")
         if not self.brew.username:
@@ -341,6 +391,13 @@ class Config:
                 return item
         return None
 
+    def active_reflector(self) -> Optional[Reflector]:
+        """DMO2TMO hat hoechstens einen aktiven Reflektor."""
+        for item in self.reflectors:
+            if item.enabled:
+                return item
+        return None
+
     def route_for_gssi(self, gssi: int) -> Optional[Route]:
         for route in self.routes:
             if route.gssi == gssi:
@@ -384,6 +441,7 @@ def from_dict(raw: dict) -> Config:
         SdsControlConfig, raw.get("sds_control"), path="sds_control"
     )
     cfg.tetra = _build(TetraConfig, raw.get("tetra"), path="tetra")
+    cfg.tetra_fw = _build(TetraFwConfig, raw.get("tetra_fw"), path="tetra_fw")
 
     audio_raw = raw.get("audio") or {}
     loopback = _build(

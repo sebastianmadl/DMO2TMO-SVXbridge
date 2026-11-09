@@ -58,8 +58,8 @@ Typ, TG, ID und die Positionsdaten.
 
 ```
 VOICE:  <gateway>,<comment>,<zeit>,<call>,VOICE,#232,<issi>,,,
-POS:    <gateway>,<comment>,<zeit>,<call>,POS,#232,<issi>,,E;<lat>;N;<lon>;000;,
-GPS:    <gateway>,<comment>,<zeit>,<call>,GPS,#232,<issi>,,E;<lat8>;N;<lon7>;<kurs>;,
+POS:    <gateway>,<comment>,<zeit>,<call>,POS,#232,<issi>,,E;<lon>;N;<lat>;000;,
+GPS:    <gateway>,<comment>,<zeit>,<call>,GPS,#232,<issi>,,E;<lon8>;N;<lat7>;<kurs>;,
 GC:     <gateway>,<comment>,<zeit>,<call>,GC,#0,<text>,,<text>,
 ```
 
@@ -82,7 +82,7 @@ Rohe Formatstrings aus dem Binary:
 | —             | Type    | literal `VOICE` / `POS` / `GPS` / `GC` |
 | —             | TG      | literal `#232` (bzw. `#0` bei GC) |
 | 5 `issi`      | ID      | **ISSI des Sprechers** (bei GC: der Text) |
-| 6/7           | POS     | Lat/Lon bei POS/GPS |
+| 6/7           | POS     | **Laenge, dann Breite** bei POS/GPS (siehe unten) |
 
 **Wichtig:** `call` und `issi` sind **getrennte** Felder. Der Server löst
 also nicht ISSI→Call auf — das Gateway liefert beides. Hat das Gateway
@@ -100,8 +100,13 @@ lokal `PTT ON:`/`PTT OFF:` nach `/tmp/ptt`, um svxlink zu tasten — das ist
 die PEI-/Funkgerät-Seite und für unsere Brücke irrelevant.
 
 ### Positionsdaten
-- POS: Lat/Lon als Strings, Kurs fix `000`.
-- GPS: Lat 8-stellig, Lon 7-stellig, plus Kurs. Format passt zu APRS
+- **Reihenfolge: zuerst die Laenge (nach `E;`), dann die Breite (nach
+  `N;`).** Belegt durch das Beispiel `E;01624.91;N;4816.82` und die
+  Formatbreiten `%8.8s`/`%7.7s`: `01624.91` (= `GATEWAY_LON`) hat 8
+  Zeichen, `4816.82` (= `GATEWAY_LAT`) 7. Eine fruehere Fassung dieses
+  Dokuments hatte das vertauscht.
+- POS: Laenge/Breite als Strings, Kurs fix `000`.
+- GPS: Laenge 8-stellig, Breite 7-stellig, plus Kurs. Format passt zu APRS
   (`E;01624.91;N;4816.82;000;`) und speist die OE-TETRA-MAP über aprs.fi.
 
 ---
@@ -252,7 +257,12 @@ kleinen Ausgang**: einen UDP-Sender, der bei jedem Durchgang eine
 VOICE-Zeile nach Abschnitt 3 an `<reflector>:5220` schickt — parallel zum
 bestehenden svxlink-Audio. Rein additiv, kein svxlink-Patch nötig.
 
-Umzusetzen (Entscheidungen mit Sebastian geklärt):
+**Umgesetzt** in `app/tetra_fw.py` (Config `tetra_fw`, WebUI System ->
+„Lastheard (TETRA-AUSTRIA)“, `/api/tetra_fw`). Abweichungen vom Original:
+TG kommt aus der Sprechgruppe statt fix `#232`; die POS-Bake traegt als
+Call den Gateway-Call und als ID die eigene Brew-ISSI.
+
+Ursprünglicher Plan (Entscheidungen mit Sebastian geklärt):
 1. Config-Abschnitt `tetra_fw` in der WebUI editierbar (Grundregel 4):
    - `gateway_call` — frei wählbar, **vorbefüllt mit dem Login-Callsign**
      des Reflektor-Eintrags (`reflector.callsign`).

@@ -4,6 +4,25 @@ Chronologie der Arbeiten. Neueste oben.
 
 ---
 
+## 2026-11-09 (Nachmittag) — tetra_fw-Lastheard-Sender
+
+- `app/tetra_fw.py`: VOICE-Zeile bei jedem GROUP_TX von TETRA an
+  `<Reflektor-Host>:5220`, POS-Bake 6x beim Start und nach Aenderung.
+  Unbekanntes Rufzeichen -> `NO USER`. DNS im Hintergrund, 5 min Cache.
+- Config `tetra_fw` (enabled, gateway_call, gateway_comment, gateway_lat,
+  gateway_lon, port), Pruefung auf Kommas und Positionsformat.
+- WebUI System -> „Lastheard (TETRA-AUSTRIA)“, `/api/tetra_fw`, Call
+  vorbefuellt mit dem Reflektor-Rufzeichen, Status mit Zaehler und
+  letzter Zeile. Wirkt ohne Neustart.
+- TG im VOICE-Feld aus der Sprechgruppe statt fix `#232`.
+- Protokoll-Doku korrigiert: bei POS/GPS steht die Laenge vor der Breite.
+- Tests: selftest (Zeilenformat, Pruefung, UDP-Empfaenger), smoketest
+  (ganzer Ruf -> VOICE-Zeile), webtest (API).
+- **Offen, nur live pruefbar:** ob der Server dedupliziert, ob VOICE zu
+  Sprechbeginn das ist, was das Dashboard erwartet.
+
+---
+
 ## 2026-11-09 — Umbau svxtetra → DMO2TMO SVXBridge
 
 ### Erledigt

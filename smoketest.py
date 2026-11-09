@@ -32,6 +32,7 @@ REALM = "brew-server"
 USERNAME = "100000001"
 PASSWORD = "geheim"
 PORT = 19000
+FW_PORT = 19220         # Lastheard-Empfaenger (tetra_fw_server-Attrappe)
 
 received = []          # was der Server von uns bekommen hat
 ws_ref = {}
@@ -129,17 +130,29 @@ def build_config() -> cfgmod.Config:
             "backend": "loopback",
             "loopback": {"target_gssi": 2324, "source_issi": 2320998},
         },
-        "reflectors": [{"name": "R2", "enabled": True}],
+        "reflectors": [{"name": "R2", "enabled": True, "host": "127.0.0.1"}],
+        "tetra_fw": {"enabled": True, "gateway_call": "OE0TST-R",
+                     "gateway_comment": "Smoketest", "port": FW_PORT},
         "routes": [
             {"gssi": 2321, "reflector": "R2", "tg": 2321, "priority": 5},
         ],
     })
 
 
+class FwEmpfaenger(asyncio.DatagramProtocol):
+    def __init__(self):
+        self.zeilen = []
+
+    def datagram_received(self, data, addr):
+        self.zeilen.append(data.decode())
+
+
 async def main() -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(levelname)-7s %(name)-12s %(message)s")
     runner = await run_server()
+    fw_transport, fw = await asyncio.get_running_loop().create_datagram_endpoint(
+        FwEmpfaenger, local_addr=("127.0.0.1", FW_PORT))
 
     cfg = build_config()
     state = AppState()
@@ -205,6 +218,13 @@ async def main() -> int:
         check("Last Heard: 3 Frames", entry.frames == 3, str(entry.frames))
     check("kein Call mehr offen", not router.calls)
     check("Floor wieder frei", not router.floors)
+    voice = [z for z in fw.zeilen if ",VOICE," in z]
+    check("Lastheard: eine VOICE-Zeile an den Reflektor-Host",
+          len(voice) == 1, repr(fw.zeilen))
+    if voice:
+        check("Lastheard: Gateway, Rufzeichen, TG, ISSI",
+              voice[0].startswith("OE0TST-R,Smoketest,")
+              and ",OE1SXM,VOICE,#2321,2325001,,," in voice[0], repr(voice[0]))
 
     print("\nUnbekannte GSSI:")
     received.clear()
@@ -343,6 +363,7 @@ async def main() -> int:
 
     await client.stop()
     task.cancel()
+    fw_transport.close()
     await runner.cleanup()
 
     print("\n" + ("Smoketest ok." if ok else "Smoketest FEHLGESCHLAGEN."))

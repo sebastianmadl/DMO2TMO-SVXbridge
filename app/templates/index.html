@@ -191,6 +191,35 @@
     <div id="tetra-out"></div>
   </div>
 
+  <h2>Lastheard (TETRA-AUSTRIA)</h2>
+  <div class="card">
+    <div class="form">
+      <label class="switch"><span>Lastheard melden</span>
+        <input type="checkbox" id="fw-enabled"></label>
+      <label><span>Gateway-Call</span>
+        <input id="fw-call" autocomplete="off"></label>
+      <label><span>Comment</span>
+        <input id="fw-comment" placeholder="Tetra-OE4SXM/430.0000" autocomplete="off"></label>
+      <label><span>Breite (ggmm.mm)</span>
+        <input id="fw-lat" placeholder="4816.82" autocomplete="off"></label>
+      <label><span>Länge (gggmm.mm)</span>
+        <input id="fw-lon" placeholder="01624.91" autocomplete="off"></label>
+      <label><span>UDP-Port</span>
+        <input id="fw-port" type="number" min="1" max="65535"></label>
+      <button class="btn primary" id="fw-save">Übernehmen</button>
+    </div>
+    <p class="hint">Der OE-Verbund zeigt Lastheard nicht über svxlink an,
+      sondern über ein eigenes UDP-Protokoll (<code>tetra_fw_server</code>).
+      Bei jedem Durchgang von TETRA geht eine VOICE-Zeile mit ISSI und
+      Rufzeichen an den Host des Reflektors, Port 5220. Ist zur ISSI kein
+      Rufzeichen bekannt, steht dort <code>NO USER</code>.</p>
+    <p class="hint">Gateway-Call leer = Node-Rufzeichen des Reflektors. Mit
+      Position meldet sich die Brücke beim Start (und nach dem Übernehmen)
+      sechsmal mit einer POS-Zeile. Wirkt ohne Neustart.</p>
+    <p class="hint" id="fw-status">&nbsp;</p>
+    <div id="fw-out"></div>
+  </div>
+
   <h2>Audiopegel</h2>
   <div class="card">
     <p class="hint">Gilt für alle Reflektoren gemeinsam. Je Richtung gibt es

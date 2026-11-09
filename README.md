@@ -36,6 +36,16 @@ ISSI kommt am Reflektor als `Qso:info` an und beim zweiten Knoten als
 Quell-ISSI raus, SDS wird ueber den Reflektor zum richtigen Gateway
 weitergereicht.
 
+## Lastheard im OE-Verbund (TETRA-AUSTRIA)
+
+Das OE-Dashboard nimmt Lastheard **nicht** ueber svxlink entgegen, sondern
+ueber ein eigenes UDP-Textprotokoll (`tetra_fw_server`, Port 5220 am
+Reflektor-Host). Mit `tetra_fw.enabled` schickt die Bruecke bei jedem
+Durchgang von TETRA eine VOICE-Zeile mit ISSI und Rufzeichen dorthin, mit
+Position zusaetzlich beim Start eine POS-Bake (6x). Einstellbar unter
+System -> „Lastheard (TETRA-AUSTRIA)“. Protokoll:
+`docs/tetra_fw_protocol.md`.
+
 ## Schnellstart
 
 ```bash

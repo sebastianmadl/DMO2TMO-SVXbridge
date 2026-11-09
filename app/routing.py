@@ -10,6 +10,7 @@ einander nicht, weil sie getrennte svxlink-Instanzen sind.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -29,6 +30,7 @@ from .sdsbox import RX, TX, SdsBox
 from .brew.client import BrewHandler
 from .schedule import RouteScheduler
 from .state import AppState, LastHeardEntry
+from .tetra_fw import TetraFwSender
 
 log = logging.getLogger("routing")
 
@@ -137,6 +139,10 @@ class Router(BrewHandler):
         # starten - main.py haengt sich hier ein.
         self.on_dynamic_change = None
         self._dynamic_pending: set[str] = set()
+        # Lastheard an den TETRA-AUSTRIA-Verbund (UDP 5220). Liest die
+        # Config ueber self.cfg, ein Reload greift also sofort.
+        self.tetra_fw = TetraFwSender(lambda: self.cfg)
+        self._bg_tasks: set = set()
 
     def _mark_dynamic(self, route: cfgmod.Route) -> None:
         if route.reflector:
@@ -184,6 +190,9 @@ class Router(BrewHandler):
             if call.route.gssi not in bleibt:
                 await self.on_svx_stop(name)
 
+        fw_neu = (asdict(cfg.tetra_fw) != asdict(self.cfg.tetra_fw)
+                  and cfg.tetra_fw.enabled)
+
         merker = {gssi: (s.manual, s._manual_until)
                   for gssi, s in self.schedulers.items()}
         self.cfg = cfg
@@ -204,6 +213,10 @@ class Router(BrewHandler):
 
         if self.client is not None:
             await self.client.affiliate(self.active_gssis())
+        if fw_neu:
+            # Neu eingeschaltet oder Gateway-Daten geaendert: Bake erneut,
+            # damit das Dashboard den neuen Stand gleich zeigt.
+            self.tetra_fw.start_beacon()
         log.info("Konfiguration neu geladen: %d Zeilen%s", len(cfg.routes),
                  f", Neustart noetig fuer {', '.join(needs_restart)}"
                  if needs_restart else "")
@@ -320,6 +333,13 @@ class Router(BrewHandler):
         )
         if call.sink is not None:
             await call.sink.start(call)
+        if self.cfg.tetra_fw.enabled:
+            # Im Hintergrund: die erste DNS-Aufloesung darf den Audiopfad
+            # nicht aufhalten.
+            task = asyncio.create_task(
+                self.tetra_fw.voice(group.source, callsign))
+            self._bg_tasks.add(task)
+            task.add_done_callback(self._bg_tasks.discard)
 
     async def on_traffic(self, frame: p.FrameMessage) -> None:
         call = self.calls.get(frame.identifier)
