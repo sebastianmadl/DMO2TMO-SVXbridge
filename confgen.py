@@ -151,6 +151,8 @@ DEFAULT_LANG=de_DE
 # TETRA-Erweiterung (svxlink/patches/01-usrplogic-tetra.patch): ISSI und
 # SDS als State-Events (Qso:info, Sds:info, ForwardSds:info) zum Reflektor
 SHARE_USERINFO={1 if (cfg.tetra.issi_passthrough or cfg.tetra.sds_forward) else 0}
+# 2 = INFO: zeigt tetra_qso/tetra_sds/remote tetra talker im Log
+DEBUG=2
 
 [ReflectorLogic]
 TYPE={reflector.logic_type}
