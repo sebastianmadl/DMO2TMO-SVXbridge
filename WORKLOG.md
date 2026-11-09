@@ -24,8 +24,11 @@ Chronologie der Arbeiten. Neueste oben.
   `node_location` (-> `nodeLocation`), `sysop`, `node_info_extra` (JSON);
   confgen schreibt `node_info.json` + `NODE_INFO_FILE`. WebUI System ->
   „Node-Info am Reflektor“, `/api/nodeinfo`, startet svxlink neu.
-  Ob das OE-Dashboard die Spalte „Comment“ wirklich aus `nodeLocation`
-  liest, ist noch zu pruefen. Das Tetra-Wiki sagt zu node_info nichts.
+  **Gegenprobe am VPS (13:36):** `nodeLocation: "Test"` geschickt
+  (node_info.json 13:35:59, Neuanmeldung 13:36:31), das OE-Dashboard zeigt
+  oben weiter „Tetra-OE4SXM/430.0000“. Der Comment der Node-Tabelle wird
+  also **serverseitig vom Sysop gepflegt**, nicht aus der Node-Info. Die
+  Node-Info landet trotzdem in der Statusabfrage des Reflektors.
 - Node-Info als ausklappbares Formular (Allgemein, Standort, Sender,
   Empfaenger, JSON) - Formular und JSON zeigen dasselbe Objekt.
 - Lastheard-Zeit mit vierstelligem Jahr (`09.11.2026 12:51:22`) wie bei
