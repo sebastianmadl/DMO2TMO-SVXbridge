@@ -182,6 +182,25 @@ t = get(op, "/api/tetra")
 check("ISSI- und SDS-Schalter gelistet",
       "issi_passthrough" in t and "sds_forward" in t, str(t))
 
+print("Lastheard (tetra_fw):")
+fw = get(op, "/api/tetra_fw")
+check("alle Felder und Status", all(k in fw for k in (
+    "enabled", "gateway_call", "gateway_comment", "gateway_lat",
+    "gateway_lon", "port", "default_call", "status")), str(fw))
+check("Status nennt Ziel", "host" in fw["status"] and "sent" in fw["status"])
+fw_merker = {k: fw[k] for k in ("enabled", "gateway_call", "gateway_comment",
+                                "gateway_lat", "gateway_lon", "port")}
+check("Komma im Comment abgelehnt", code_of(lambda: post(
+    op, "/api/tetra_fw", {"gateway_comment": "a,b"})) == 400)
+check("kaputte Position abgelehnt", code_of(lambda: post(
+    op, "/api/tetra_fw", {"gateway_lat": "48.1", "gateway_lon": "16.4"})) == 400)
+r = post(op, "/api/tetra_fw", {"gateway_comment": "webtest"})
+check("Comment uebernommen",
+      get(op, "/api/tetra_fw")["gateway_comment"] == "webtest", str(r))
+post(op, "/api/tetra_fw", fw_merker)
+check("zurueckgestellt",
+      get(op, "/api/tetra_fw")["gateway_comment"] == fw_merker["gateway_comment"])
+
 # ---------------------------------------------------------------- Reflektoren
 print("Reflektoren:")
 rf = get(op, "/api/reflectors")

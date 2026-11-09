@@ -39,7 +39,7 @@ function showTab(key) {
     s.classList.toggle("active", s.id === "tab-" + key));
   try { localStorage.setItem("tab", key); } catch (e) {}
   if (key === "system") {
-    renderServices(); loadUsers(); loadConfig(); loadGain(); loadTetra(); loadIdlist();
+    renderServices(); loadUsers(); loadConfig(); loadGain(); loadTetra(); loadTetraFw(); loadIdlist();
   }
   if (key === "routes") loadRoutes();
   if (key === "sds") pollSds();
@@ -651,6 +651,46 @@ $("tetra-save")?.addEventListener("click", async () => {
     });
     note($("tetra-out"), d.hinweis);
   } catch (e) { note($("tetra-out"), e.message, true); }
+});
+
+function fwStatusText(st) {
+  if (!st.host) return "Kein aktiver Reflektor mit Host – Lastheard geht nirgends hin.";
+  let t = `Ziel ${st.host}:${st.port} · TG ${st.tg} · ${st.sent} gesendet`;
+  if (st.errors) t += ` · ${st.errors} Fehler`;
+  if (st.last_error) t += ` · zuletzt: ${st.last_error}`;
+  else if (st.last_line) t += ` · zuletzt: ${st.last_line}`;
+  return t;
+}
+async function loadTetraFw(force) {
+  if (!window.MAY.system || !$("fw-enabled")) return;
+  if ($("fw-enabled").dataset.loaded && !force) return;
+  try {
+    const d = await api("/api/tetra_fw");
+    $("fw-enabled").checked = !!d.enabled;
+    // Vorbefuellt mit dem Login-Callsign des Reflektors
+    $("fw-call").value = d.gateway_call || d.default_call || "";
+    $("fw-call").placeholder = d.default_call || "";
+    $("fw-comment").value = d.gateway_comment || "";
+    $("fw-lat").value = d.gateway_lat || "";
+    $("fw-lon").value = d.gateway_lon || "";
+    $("fw-port").value = d.port;
+    $("fw-status").textContent = fwStatusText(d.status);
+    $("fw-enabled").dataset.loaded = "1";
+  } catch (e) { note($("fw-out"), e.message, true); }
+}
+$("fw-save")?.addEventListener("click", async () => {
+  try {
+    const d = await post("/api/tetra_fw", {
+      enabled: $("fw-enabled").checked,
+      gateway_call: $("fw-call").value,
+      gateway_comment: $("fw-comment").value,
+      gateway_lat: $("fw-lat").value,
+      gateway_lon: $("fw-lon").value,
+      port: Number($("fw-port").value),
+    });
+    note($("fw-out"), d.hinweis);
+    loadTetraFw(true);
+  } catch (e) { note($("fw-out"), e.message, true); }
 });
 
 async function loadGain() {

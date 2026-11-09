@@ -35,6 +35,16 @@ tetra:
   issi_passthrough: true           # ISSI des Sprechers in beide Richtungen
   sds_forward: true                # Text-SDS ueber den Reflektor
 
+tetra_fw:
+  # Lastheard an den TETRA-AUSTRIA-Verbund: eine UDP-Zeile je Durchgang an
+  # den Host des Reflektors (siehe docs/tetra_fw_protocol.md).
+  enabled: false
+  gateway_call: ""                 # leer = Rufzeichen des Reflektors
+  gateway_comment: ""              # z.B. "Tetra-OE4SXM/430.0000"
+  gateway_lat: ""                  # ggmm.mm, z.B. "4816.82" - leer = keine Bake
+  gateway_lon: ""                  # gggmm.mm, z.B. "01624.91"
+  port: 5220
+
 audio:
   # loopback = Etappe 2: ACELP-Frames unveraendert auf target_gssi
   #            zurueckspiegeln, zum Testen ohne Codec und ohne svxlink

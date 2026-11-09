@@ -504,6 +504,39 @@ async def api_tetra(request: web.Request):
 
 
 @needs("system")
+async def api_tetra_fw(request: web.Request):
+    """Lastheard an den TETRA-AUSTRIA-Verbund (UDP 5220).
+
+    Wirkt ohne Neustart - der Sender liest die Config bei jedem Durchgang.
+    """
+    cfg: cfgmod.Config = request.app["cfg"]
+    sender = request.app["router"].tetra_fw
+    if request.method == "GET":
+        reflektor = cfg.active_reflector()
+        return web.json_response({
+            **asdict(cfg.tetra_fw),
+            # Vorbelegung fuer das Feld Gateway-Call
+            "default_call": reflektor.callsign if reflektor else "",
+            "status": sender.status(),
+        })
+    data = await request.json()
+    raw = cfg.to_dict()
+    fw = raw.setdefault("tetra_fw", {})
+    if "enabled" in data:
+        fw["enabled"] = bool(data["enabled"])
+    for key in ("gateway_call", "gateway_comment", "gateway_lat",
+                "gateway_lon"):
+        if key in data:
+            fw[key] = str(data[key] or "").strip()
+    if "port" in data:
+        try:
+            fw["port"] = int(data["port"])
+        except (TypeError, ValueError):
+            raise web.HTTPBadRequest(text="port: keine ganze Zahl")
+    return await _apply(request, raw, "Lastheard-Einstellungen")
+
+
+@needs("system")
 async def api_audio(request: web.Request):
     """Audiopegel in dB. Global, nicht je Reflektor."""
     cfg: cfgmod.Config = request.app["cfg"]
@@ -794,6 +827,8 @@ def build_app(cfg, state, router, client, *, config_path: str,
     app.router.add_post("/api/reflectors", api_reflectors)
     app.router.add_get("/api/tetra", api_tetra)
     app.router.add_post("/api/tetra", api_tetra)
+    app.router.add_get("/api/tetra_fw", api_tetra_fw)
+    app.router.add_post("/api/tetra_fw", api_tetra_fw)
     app.router.add_get("/api/audio", api_audio)
     app.router.add_post("/api/audio", api_audio)
     app.router.add_get("/api/config", api_config)
