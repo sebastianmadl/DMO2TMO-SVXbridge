@@ -267,7 +267,7 @@ class TetraConfig:
 class StatusServerConfig:
     enabled: bool = True
     listen: str = "0.0.0.0"
-    port: int = 3006
+    port: int = 3007
 
 
 @dataclass

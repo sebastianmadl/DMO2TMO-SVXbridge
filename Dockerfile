@@ -97,6 +97,6 @@ COPY selftest.py smoketest.py codectest.py livetest.py confgen.py manager.py \
      config.example.yaml ./
 
 VOLUME ["/data"]
-EXPOSE 3006
+EXPOSE 3007
 
 CMD ["python3", "manager.py"]

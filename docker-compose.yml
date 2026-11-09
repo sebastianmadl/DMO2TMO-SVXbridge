@@ -11,17 +11,16 @@ services:
 
     # Haengt im vorhandenen Proxy-Netz, statt ein eigenes aufzumachen. Der
     # Reverse-Proxy erreicht die Oberflaeche darin unter
-    # `dmo2tmo-svxbridge:3006`.
+    # `dmo2tmo-svxbridge:3007`.
     networks:
       - proxy_bridge
 
     # Zusaetzlich auf localhost, damit man am VPS selbst curl'n und
     # `webtest.py` laufen lassen kann. Nach aussen ist damit nichts offen -
     # das macht der Proxy. Kann weg, wer das nicht braucht.
-    # Host-Port 3007, damit es nicht mit einer alten svxtetra-Instanz auf
-    # 3006 kollidiert. Im Container und fuer den Proxy bleibt es 3006.
+    # 3007 - die alte svxtetra-Bruecke (SVXLink Austria) bleibt auf 3006.
     ports:
-      - "127.0.0.1:3007:3006"
+      - "127.0.0.1:3007:3007"
 
     volumes:
       - ./data:/data
@@ -37,7 +36,7 @@ services:
 
     healthcheck:
       test: ["CMD", "python3", "-c",
-             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3006/healthz', timeout=3)"]
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3007/healthz', timeout=3)"]
       interval: 60s
       timeout: 5s
       start_period: 40s

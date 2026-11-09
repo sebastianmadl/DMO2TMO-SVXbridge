@@ -22,7 +22,7 @@ brew:
 status_server:
   enabled: true
   listen: "0.0.0.0"
-  port: 3006
+  port: 3007
 
 sds_control:
   # Bei DMO2TMO gibt es keine TG-Kommandos mehr. Uebrig bleibt die

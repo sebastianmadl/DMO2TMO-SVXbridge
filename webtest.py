@@ -2,11 +2,11 @@
 
 Braucht einen laufenden Stack und die Anmeldung admin/admin:
 
-    docker run -d --name svxstack -p 3006:3006 -v "$PWD/out:/data" \
+    docker run -d --name svxstack -p 3007:3007 -v "$PWD/out:/data" \
         dmo2tmo-svxbridge python3 manager.py /data/live.yaml
-    python3 webtest.py [http://127.0.0.1:3006]
+    python3 webtest.py [http://127.0.0.1:3007]
 
-    python3 webtest.py http://127.0.0.1:3006 admin geheim
+    python3 webtest.py http://127.0.0.1:3007 admin geheim
 
 Laesst sich gefahrlos gegen eine laufende Anlage fahren: was angelegt
 wird (Route 4711, Benutzer "pruefling", ISSI 9999998), wird wieder
@@ -25,7 +25,7 @@ import urllib.request
 import os
 import sys
 
-B = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3006"
+B = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3007"
 # Nach dem ersten Passwortwechsel taugt admin/admin nicht mehr - Zugang
 # also als Argument oder ueber die Umgebung.
 USER = (sys.argv[2] if len(sys.argv) > 2

@@ -11,7 +11,7 @@ von DL1HRCs `tetra-contrib`, das TETRA OE DMO verwendet.
   (`svxlink/patches/`), damit ISSI und SDS als State-Events zum Reflektor
   gehen
 - Zeitsteuerung der Sprechgruppe inklusive Nachlaufzeit
-- WebUI (Port 3006 im Container): Status, Sprechgruppe, SDS, Log, System
+- WebUI auf Port 3007: Status, Sprechgruppe, SDS, Log, System
 
 Details, Messwerte und Geschichte stehen in `CLAUDE.md`.
 
@@ -130,11 +130,11 @@ docker compose up -d
 docker compose logs -f
 ```
 
-Dann `http://127.0.0.1:3007`, Anmeldung **admin / admin**. (Host-Port
-3007, damit es neben einer alten svxtetra-Instanz auf 3006 laufen kann.)
+Dann `http://127.0.0.1:3007`, Anmeldung **admin / admin**. Port 3007,
+weil die alte svxtetra-Bruecke (SVXLink Austria) auf 3006 weiterlaeuft.
 
 Der Reverse-Proxy erreicht die Oberflaeche im selben Netz unter
-**`http://dmo2tmo-svxbridge:3006`** — kein veroeffentlichter Port noetig. Die
+**`http://dmo2tmo-svxbridge:3007`** — kein veroeffentlichter Port noetig. Die
 zusaetzliche Bindung auf `127.0.0.1:3007` im Compose-File ist nur fuer
 `curl` und `webtest.py` am VPS selbst gedacht und kann weg.
 
@@ -237,8 +237,8 @@ Manuelles Schalten schlaegt den Zeitplan und gilt bis zum naechsten
 Fensterwechsel:
 
 ```bash
-curl -X POST "http://localhost:3006/api/route/2321/manual?value=off"
-curl -X POST "http://localhost:3006/api/route/2321/manual?value=auto"
+curl -X POST "http://localhost:3007/api/route/2321/manual?value=off"
+curl -X POST "http://localhost:3007/api/route/2321/manual?value=auto"
 ```
 
 Zeitzone kommt aus der Config, nicht aus dem Container-Default - sonst

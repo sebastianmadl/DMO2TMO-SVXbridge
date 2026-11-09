@@ -10,9 +10,12 @@ durch den Reflektor - im Format von DL1HRCs `tetra-contrib`, das TETRA OE
 DMO verwendet.
 
 **Deployment:** `/opt/dmo2tmo-svxbridge`, Container und Compose-Dienst
-`dmo2tmo-svxbridge`, Proxy-Ziel `dmo2tmo-svxbridge:3006`, Host-Port
-`127.0.0.1:3007` (3006 ist die alte svxtetra-Instanz). Cookie heisst
-`dmo2tmo`, sonst kollidiert die Anmeldung mit svxtetra auf demselben Host.
+`dmo2tmo-svxbridge`, Port **3007** durchgehend (Container, Proxy-Ziel
+`dmo2tmo-svxbridge:3007`, `127.0.0.1:3007`). Cookie heisst `dmo2tmo`.
+
+**Zwei Bruecken bleiben parallel:** diese fuer **TETRA DMO OE**, die alte
+svxtetra (Port 3006) fuer **SVXLink Austria**. Verschiedene Reflektoren,
+also keine Kollision bei Node-Rufzeichen.
 
 **Was sich geaendert hat:**
 
