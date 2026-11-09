@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="de" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ app_name }}</title>
+<link rel="stylesheet" href="/static/style.css?v={{ ver }}">
+</head>
+<body class="login-body">
+  <form class="login" method="post" action="/login">
+    <div class="brand big-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"></path>
+        <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4"></path>
+        <circle cx="12" cy="12" r="2"></circle>
+        <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4"></path>
+        <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"></path>
+      </svg>
+      <div class="brand-text">
+        <div class="brand-name">{{ app_name }}</div>
+        <div class="brand-by">TETRA &lt;-&gt; SVXLink</div>
+      </div>
+    </div>
+
+    <label>
+      <span>Benutzer</span>
+      <input name="username" autocomplete="username" autofocus required>
+    </label>
+    <label>
+      <span>Passwort</span>
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button class="btn primary" type="submit">Anmelden</button>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  </form>
+</body>
+</html>

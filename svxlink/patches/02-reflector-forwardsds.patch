@@ -1,0 +1,18 @@
+diff --git a/src/svxlink/reflector/Reflector.cpp b/src/svxlink/reflector/Reflector.cpp
+index f9148f1..8014de5 100644
+--- a/src/svxlink/reflector/Reflector.cpp
++++ b/src/svxlink/reflector/Reflector.cpp
+@@ -719,8 +719,12 @@ void Reflector::forwardSds(Json::Value eventmessage)
+       for (const auto& item : m_client_con_map)
+       {
+         ReflectorClient *client = item.second;
++        // deliver to the node the user is registered at (Register:info),
++        // not back to the sender
++        const std::string& user_gw =
++            iu->second.gateway.empty() ? gateway : iu->second.gateway;
+         if (client->conState() == ReflectorClient::STATE_CONNECTED &&
+-           client->callsign() == gateway && ge_v2_client_filter(client))
++           client->callsign() == user_gw && ge_v2_client_filter(client))
+         {
+           if (debug)
+           {

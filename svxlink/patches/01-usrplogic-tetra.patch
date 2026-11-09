@@ -1,0 +1,488 @@
+diff --git a/src/svxlink/svxlink/ReflectorLogic.cpp b/src/svxlink/svxlink/ReflectorLogic.cpp
+index d36c0ea..81cc08d 100644
+--- a/src/svxlink/svxlink/ReflectorLogic.cpp
++++ b/src/svxlink/svxlink/ReflectorLogic.cpp
+@@ -960,7 +960,8 @@ void ReflectorLogic::remoteReceivedPublishStateEvent(
+   else if (event_name == "Sds:info" || event_name == "DvUsers:info" ||
+            event_name == "Rssi:info" || event_name == "System:info" ||
+            event_name == "Qso:info" || event_name == "Register:info" ||
+-           event_name == "ForwardSds:info")
++           event_name == "ForwardSds:info" ||
++           event_name == "TetraUsers:info")
+   {
+     MsgStateEvent msg(logic->name(), event_name, data);
+     sendMsg(msg);
+diff --git a/src/svxlink/svxlink/ReflectorV2Logic.cpp b/src/svxlink/svxlink/ReflectorV2Logic.cpp
+index c8ae389..b90f936 100644
+--- a/src/svxlink/svxlink/ReflectorV2Logic.cpp
++++ b/src/svxlink/svxlink/ReflectorV2Logic.cpp
+@@ -761,7 +761,8 @@ void ReflectorLogic::remoteReceivedPublishStateEvent(
+   else if (event_name == "Sds:info" || event_name == "DvUsers:info" ||
+            event_name == "Rssi:info" || event_name == "System:info" ||
+            event_name == "Qso:info" || event_name == "Register:info" ||
+-           event_name == "ForwardSds:info")
++           event_name == "ForwardSds:info" ||
++           event_name == "TetraUsers:info")
+   {
+     MsgStateEvent msg(logic->name(), event_name, data);
+     sendMsg(msg);
+@@ -915,6 +916,9 @@ void ReflectorLogic::onFrameReceived(FramedTcpConnection *con,
+     case MsgRequestQsy::TYPE:
+       handleMsgRequestQsy(ss);
+       break;
++    case MsgStateEvent::TYPE:
++      handleMsgStateEvent(ss);
++      break;
+     default:
+       // Better just ignoring unknown messages for easier addition of protocol
+       // messages while being backwards compatible
+@@ -1250,6 +1254,11 @@ void ReflectorLogic::handleMsgTalkerStart(std::istream& is)
+   ss << "talker_start " << msg.tg() << " "
+      << EventHandler::tclSafeCallsign(msg.callsign());
+   processEvent(ss.str());
++
++  Json::Value event(Json::objectValue);
++  event["tg"] = msg.tg();
++  event["callsign"] = msg.callsign();
++  publishStateEvent("Reflector:talker_start", jsonToString(event));
+ } /* ReflectorLogic::handleMsgTalkerStart */
+ 
+ 
+@@ -1314,6 +1323,20 @@ void ReflectorLogic::handleMsgRequestQsy(std::istream& is)
+ } /* ReflectorLogic::handleMsgRequestQsy */
+ 
+ 
++void ReflectorLogic::handleMsgStateEvent(std::istream& is)
++{
++  MsgStateEvent msg;
++  if (!msg.unpack(is))
++  {
++    cerr << "*** ERROR[" << name() << "]: Could not unpack MsgStateEvent\n";
++    disconnect();
++    return;
++  }
++
++  publishStateEvent(msg.name(), msg.msg());
++} /* ReflectorLogic::handleMsgStateEvent */
++
++
+ void ReflectorLogic::sendMsg(const ReflectorMsg& msg)
+ {
+   if (!isConnected())
+diff --git a/src/svxlink/svxlink/ReflectorV2Logic.h b/src/svxlink/svxlink/ReflectorV2Logic.h
+index ae187ba..80a61d6 100644
+--- a/src/svxlink/svxlink/ReflectorV2Logic.h
++++ b/src/svxlink/svxlink/ReflectorV2Logic.h
+@@ -274,6 +274,7 @@ class ReflectorLogic : public LogicBase
+     void handleMsgTalkerStart(std::istream& is);
+     void handleMsgTalkerStop(std::istream& is);
+     void handleMsgRequestQsy(std::istream& is);
++    void handleMsgStateEvent(std::istream& is);
+     void handleMsgAuthOk(void);
+     void handleMsgServerInfo(std::istream& is);
+     void sendMsg(const ReflectorMsg& msg);
+diff --git a/src/svxlink/svxlink/contrib/CMakeLists.txt b/src/svxlink/svxlink/contrib/CMakeLists.txt
+index 9b05ef2..5053665 100644
+--- a/src/svxlink/svxlink/contrib/CMakeLists.txt
++++ b/src/svxlink/svxlink/contrib/CMakeLists.txt
+@@ -12,6 +12,8 @@ macro(add_contrib name subdir comment)
+   endif(${WITH_CONTRIB_${name}})
+ endmacro(add_contrib)
+ 
++add_contrib(USRP_LOGIC UsrpLogic
++  "Set to ON to build and install contributed logic core UsrpLogic")
+ add_contrib(TETRA_LOGIC TetraLogic
+   "Set to ON to build and install contributed logic core TetraLogic")
+ add_contrib(ANNOUNCE_LOGIC AnnounceLogic
+diff --git a/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.cpp b/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.cpp
+index e2ee543..55c896b 100644
+--- a/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.cpp
++++ b/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.cpp
+@@ -147,7 +147,9 @@ UsrpLogic::UsrpLogic(void)
+     ident(false), m_dmrid(0), m_rptid(0), m_selected_cc(0), m_selected_ts(1),
+     preamp_gain(0), net_preamp_gain(0), m_event_handler(0), m_last_tg(0),
+     debug(LOGERROR), share_userinfo(true),
+-    m_delay_timer(5000, Timer::TYPE_ONESHOT, false), callsign("N0CALL")
++    m_delay_timer(5000, Timer::TYPE_ONESHOT, false), callsign("N0CALL"),
++    m_rx_active(false), m_rx_issi(0), m_remote_active(false),
++    m_remote_issi(0)
+ {
+   m_flush_timeout_timer.expired.connect(
+       mem_fun(*this, &UsrpLogic::flushTimeout));
+@@ -645,6 +647,8 @@ void UsrpLogic::udpDatagramReceived(const IpAddress& addr, uint16_t port,
+       m_last_call = usrptlvmsg.getCallsign();
+       m_last_tg = usrptlvmsg.getTg();
+       m_last_dmrid = usrptlvmsg.getDmrId();
++      m_rx_issi = m_last_dmrid;
++      m_rx_call = m_last_call;
+     }
+     else
+     {
+@@ -653,6 +657,14 @@ void UsrpLogic::udpDatagramReceived(const IpAddress& addr, uint16_t port,
+       sp.write(reinterpret_cast<const char*>(buf), count);
+       std::string metadata = sp.str().substr(USRP_HEADER_LEN, 
+                                 count-USRP_HEADER_LEN);
++      metadata.erase(std::find(metadata.begin(), metadata.end(), '\0'),
++                     metadata.end());
++
++      if (metadata.compare(0, 4, "SDS:") == 0)
++      {
++        handleSdsFromUsrp(metadata.substr(4));
++        return;
++      }
+ 
+       uint32_t ti = time(NULL);
+       Json::CharReaderBuilder rbuilder;
+@@ -741,6 +753,11 @@ void UsrpLogic::udpDatagramReceived(const IpAddress& addr, uint16_t port,
+ 
+ void UsrpLogic::handleVoiceStream(UsrpAudioMsg usrp)
+ {
++  if (!m_rx_active)
++  {
++    m_rx_active = true;
++    publishQso(true);
++  }
+   gettimeofday(&m_last_talker_timestamp, NULL);
+   std::array<int16_t, 160> m_audio_data;
+   for (size_t i = 0; i<usrp.audioData().size(); i++)
+@@ -754,6 +771,13 @@ void UsrpLogic::handleVoiceStream(UsrpAudioMsg usrp)
+ 
+ void UsrpLogic::handleStreamStop(void)
+ {
++  if (m_rx_active)
++  {
++    m_rx_active = false;
++    publishQso(false);
++    m_rx_issi = 0;
++    m_rx_call = "";
++  }
+   m_dec->flushEncodedSamples();
+   checkIdle();
+   m_enc->allEncodedSamplesFlushed();
+@@ -851,6 +875,9 @@ void UsrpLogic::sendStopMsg(void)
+   }
+   sendUdpMessage(os);
+   ident = false;
++  m_remote_active = false;
++  m_remote_issi = 0;
++  m_remote_call = "";
+ 
+   stringstream ss;
+   ss << "transmission_stop " << m_selected_tg;
+@@ -869,7 +896,12 @@ void UsrpLogic::sendMetaMsg(void)
+   usrp.setTS(m_selected_ts);
+   usrp.setTg(m_selected_tg);
+ 
+-  if (talker.isTalking)
++  if (m_remote_active && (m_remote_issi > 0 || !m_remote_call.empty()))
++  {
++    usrp.setCallsign(m_remote_call.empty() ? m_callsign : m_remote_call);
++    usrp.setDmrId(m_remote_issi);
++  }
++  else if (talker.isTalking)
+   {
+     usrp.setCallsign(talker.callsign);
+     usrp.setDmrId(0);
+@@ -1216,6 +1248,246 @@ void UsrpLogic::log(uint8_t logtype, std::string logmessage)
+   }
+ } /* UsrpLogic::log */
+ 
++/*
++ * TETRA extensions (DMO2TMO SVXBridge)
++ *
++ * The USRP partner (the TETRA bridge) puts the ISSI of the talking TETRA
++ * subscriber into the DMR-ID field of the TLV metadata and its callsign into
++ * the callsign field. From that we publish TetraLogic compatible state
++ * events (Qso:info, TetraUsers:info, Register:info) so that the ISSI is
++ * known on the reflector network.
++ *
++ * The other direction uses the same field: if a remote TETRA node reports
++ * its talker via Qso:info, or the reflector names the talking node via
++ * Reflector:talker_start, that information goes into the metadata we send
++ * to the USRP partner at the beginning of a transmission.
++ *
++ * SDS travel as USRP TEXT messages with the prefix "SDS:" followed by a JSON
++ * object, in both directions.
++ */
++
++uint32_t UsrpLogic::issiFromTsi(const std::string& tsi)
++{
++  std::string digits;
++  for (char c : tsi)
++  {
++    if (isdigit(static_cast<unsigned char>(c))) digits += c;
++  }
++  if (digits.empty()) return 0;
++    // a full TSI is MCC(4)+MNC(5)+ISSI(8) - only the ISSI fits into 24 bit
++  if (digits.length() > 8) digits = digits.substr(digits.length() - 8);
++  unsigned long v = strtoul(digits.c_str(), nullptr, 10);
++  return (v > 0xffffff) ? 0 : static_cast<uint32_t>(v);
++} /* UsrpLogic::issiFromTsi */
++
++
++void UsrpLogic::publishQso(bool active)
++{
++  if (m_rx_issi == 0) return;
++
++  announceTetraUser(m_rx_issi, m_rx_call);
++
++  Json::Value qsoinfo(Json::objectValue);
++  qsoinfo["qso_active"] = active;
++  qsoinfo["gateway"] = m_callsign;
++  qsoinfo["dest_issi"] = m_last_tg > 0 ? m_last_tg : m_selected_tg;
++  qsoinfo["last_activity"] = static_cast<Json::UInt>(time(NULL));
++  qsoinfo["qso_members"] = m_rx_call;
++  if (active)
++  {
++    qsoinfo["active_issi"] = std::to_string(m_rx_issi);
++  }
++  else
++  {
++    qsoinfo["last_talker"] = std::to_string(m_rx_issi);
++  }
++  qsoinfo["message"] = "Qso:info";
++  publishInfo("Qso:info", qsoinfo);
++
++  stringstream ss;
++  ss << "tetra_qso " << (active ? "start " : "stop ") << m_rx_issi << " "
++     << (m_rx_call.empty() ? "-" : m_rx_call);
++  log(LOGINFO, ss.str());
++} /* UsrpLogic::publishQso */
++
++
++void UsrpLogic::announceTetraUser(uint32_t issi, const std::string& call)
++{
++  if (issi == 0 || call.empty()) return;
++  if (m_announced_issis.count(issi) > 0) return;
++  m_announced_issis.insert(issi);
++
++  Json::Value user(Json::objectValue);
++  user["id"] = std::to_string(issi);
++  user["tsi"] = std::to_string(issi);
++  user["call"] = call;
++  user["name"] = call;
++  user["mode"] = "TETRA";
++  user["idtype"] = "ISSI";
++  user["registered"] = true;
++  user["last_activity"] = static_cast<Json::UInt>(time(NULL));
++
++  Json::Value users(Json::arrayValue);
++  users.append(user);
++  publishInfo("TetraUsers:info", users);   // reflector: create the user
++  publishInfo("Register:info", users);     // reflector: gateway = this node
++} /* UsrpLogic::announceTetraUser */
++
++
++void UsrpLogic::handleSdsFromUsrp(const std::string& json)
++{
++  Json::CharReaderBuilder rbuilder;
++  std::unique_ptr<Json::CharReader> const reader(rbuilder.newCharReader());
++  std::string err;
++  Json::Value sds;
++  if (!reader->parse(json.c_str(), json.c_str() + json.size(), &sds, &err)
++      || !sds.isObject())
++  {
++    log(LOGERROR, "*** ERROR: SDS from USRP partner is no JSON: " + err);
++    return;
++  }
++
++  uint32_t src_issi = sds.get("source_issi", 0).asUInt();
++  std::string src_call = sds.get("source_call", "").asString();
++  std::string dest_call = sds.get("dest_call", "").asString();
++  std::string text = sds.get("text", "").asString();
++  if (text.empty()) return;
++
++  announceTetraUser(src_issi, src_call);
++
++  uint32_t ti = time(NULL);
++
++    // for the reflector status page (same layout as TetraLogic)
++  Json::Value sdsinfo(Json::objectValue);
++  sdsinfo["last_activity"] = ti;
++  sdsinfo["sendertsi"] = std::to_string(src_issi);
++  sdsinfo["type"] = 0;
++  sdsinfo["from"] = src_call;
++  sdsinfo["to"] = dest_call;
++  sdsinfo["receivertsi"] = "";
++  sdsinfo["gateway"] = m_callsign;
++  sdsinfo["message"] = "Sds:info";
++  publishInfo("Sds:info", sdsinfo);
++
++  if (!dest_call.empty())
++  {
++      // keys of the sender (TetraLogic) and of the receiver side, so both
++      // the current and a fixed TetraLogic can read it
++    Json::Value fwd(Json::objectValue);
++    fwd["dest_callsign"] = dest_call;
++    fwd["dest_call"] = dest_call;
++    fwd["sdsmessage"] = text;
++    fwd["sds_info"] = text;
++    fwd["source_call"] = src_call;
++    fwd["source_issi"] = std::to_string(src_issi);
++    fwd["gateway"] = m_callsign;
++    fwd["message"] = "ForwardSds:info";
++    publishInfo("ForwardSds:info", fwd);
++  }
++
++  log(LOGINFO, "tetra_sds " + std::to_string(src_issi) + " (" + src_call
++      + ") -> " + (dest_call.empty() ? "-" : dest_call) + ": " + text);
++} /* UsrpLogic::handleSdsFromUsrp */
++
++
++void UsrpLogic::sendTextToUsrp(const std::string& prefix,
++                               const Json::Value& value)
++{
++  Json::StreamWriterBuilder builder;
++  builder["commentStyle"] = "None";
++  builder["indentation"] = "";
++  std::string text = prefix + Json::writeString(builder, value);
++
++  UsrpMetaTextMsg usrp;
++  if (udp_seq++ > 0x7fff) udp_seq = 0;
++  ostringstream os;
++  if (!usrp.pack(os))
++  {
++    cerr << "*** ERROR[" << name() << "]: Failed to pack UDP Usrp message\n";
++    return;
++  }
++    // UsrpMetaTextMsg packs header + one meta byte; replace that byte by
++    // the text
++  std::string packet = os.str().substr(0, USRP_HEADER_LEN) + text;
++  ostringstream out;
++  out << packet;
++  sendUdpMessage(out);
++} /* UsrpLogic::sendTextToUsrp */
++
++
++void UsrpLogic::remoteReceivedPublishStateEvent(LogicBase *src_logic,
++    const std::string& event_name, const std::string& msg)
++{
++  if (event_name != "Qso:info" && event_name != "ForwardSds:info" &&
++      event_name != "Reflector:talker_start")
++  {
++    return;
++  }
++
++  Json::CharReaderBuilder rbuilder;
++  std::unique_ptr<Json::CharReader> const reader(rbuilder.newCharReader());
++  std::string err;
++  Json::Value v;
++  if (!reader->parse(msg.c_str(), msg.c_str() + msg.size(), &v, &err))
++  {
++    log(LOGERROR, "*** ERROR: parsing " + event_name + " (" + err + ")");
++    return;
++  }
++  if (v.isArray())
++  {
++    if (v.empty()) return;
++    v = v[0];
++  }
++
++  if (event_name == "Reflector:talker_start")
++  {
++    if (!m_remote_active || m_remote_call.empty())
++    {
++      m_remote_call = v.get("callsign", "").asString();
++      m_remote_active = true;
++    }
++  }
++  else if (event_name == "Qso:info")
++  {
++    if (v.get("gateway", "").asString() == m_callsign) return;
++    if (v.get("qso_active", false).asBool())
++    {
++      m_remote_issi = issiFromTsi(v.get("active_issi", "").asString());
++      std::string members = v.get("qso_members", "").asString();
++      if (!members.empty())
++      {
++        m_remote_call = members.substr(members.find_last_of(",") + 1);
++      }
++      m_remote_active = true;
++      stringstream ss;
++      ss << "remote tetra talker " << m_remote_issi << " " << m_remote_call;
++      log(LOGINFO, ss.str());
++        // already transmitting? then send the new talker data at once
++      if (ident) sendMetaMsg();
++    }
++  }
++  else if (event_name == "ForwardSds:info")
++  {
++    std::string dest = v.get("dest_call", v.get("dest_callsign", "")
++                              .asString()).asString();
++    std::string text = v.get("sds_info", v.get("sdsmessage", "")
++                              .asString()).asString();
++    std::string src = v.get("source_call", v.get("source", "")
++                              .asString()).asString();
++    if (dest.empty() || text.empty()) return;
++
++    Json::Value sds(Json::objectValue);
++    sds["dest_call"] = dest;
++    sds["text"] = text;
++    sds["source_call"] = src;
++    sds["source_issi"] = v.get("source_issi", "").asString();
++    sds["gateway"] = v.get("gateway", "").asString();
++    sendTextToUsrp("SDS:", sds);
++    log(LOGINFO, "forward sds " + src + " -> " + dest + ": " + text);
++  }
++} /* UsrpLogic::remoteReceivedPublishStateEvent */
++
++
+ /*
+  * This file has not been truncated
+  */
+diff --git a/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.h b/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.h
+index 76468c2..98b2ac5 100644
+--- a/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.h
++++ b/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.h
+@@ -140,6 +140,16 @@ class UsrpLogic : public LogicBase
+      */
+     virtual Async::AudioSource *logicConOut(void) { return m_logic_con_out; }
+ 
++    /**
++     * @brief   Receive state events from linked logics (e.g. ReflectorLogic)
++     *
++     * Used for the TETRA extensions: Qso:info (talker ISSI of remote TETRA
++     * nodes), ForwardSds:info (SDS for a TETRA subscriber behind this node)
++     * and Reflector:talker_start (callsign of the current talker).
++     */
++    virtual void remoteReceivedPublishStateEvent(LogicBase *logic,
++        const std::string& event_name, const std::string& msg) override;
++
+   protected:
+     /**
+      * @brief 	Destructor
+@@ -228,6 +238,15 @@ class UsrpLogic : public LogicBase
+     std::string                       m_last_mode;
+     std::string                       callsign;
+ 
++      // TETRA extensions (DMO2TMO SVXBridge)
++    bool                              m_rx_active;      // USRP -> svxlink
++    uint32_t                          m_rx_issi;        // ISSI of TETRA talker
++    std::string                       m_rx_call;
++    bool                              m_remote_active;  // svxlink -> USRP
++    uint32_t                          m_remote_issi;
++    std::string                       m_remote_call;
++    std::set<uint32_t>                m_announced_issis;
++
+     UsrpLogic(const UsrpLogic&);
+     UsrpLogic& operator=(const UsrpLogic&);
+     void handleMsgError(std::istream& is);
+@@ -267,6 +286,11 @@ class UsrpLogic : public LogicBase
+     bool getConfigValue(const std::string& section, const std::string& tag,
+                         std::string& value);
+     void log(uint8_t logtype, std::string logmessage);
++    void publishQso(bool active);
++    void announceTetraUser(uint32_t issi, const std::string& call);
++    void handleSdsFromUsrp(const std::string& json);
++    void sendTextToUsrp(const std::string& prefix, const Json::Value& value);
++    static uint32_t issiFromTsi(const std::string& tsi);
+ };  /* class UsrpLogic */
+ 
+ 
+diff --git a/src/svxlink/svxlink/contrib/UsrpLogic/dv_users.json b/src/svxlink/svxlink/contrib/UsrpLogic/dv_users.json
+new file mode 100644
+index 0000000..fe51488
+--- /dev/null
++++ b/src/svxlink/svxlink/contrib/UsrpLogic/dv_users.json
+@@ -0,0 +1 @@
++[]

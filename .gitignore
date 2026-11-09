@@ -1,0 +1,6 @@
+data/
+out/
+__pycache__/
+*.pyc
+codec/*.so
+codec/build/

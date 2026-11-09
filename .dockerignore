@@ -1,0 +1,19 @@
+# Der Build braucht nur den Quellcode. Ohne diese Datei wandert das ganze
+# Datenverzeichnis in den Build-Kontext - inklusive live.yaml mit
+# Zugangsdaten, der 5-MB-Rufzeichenliste und aufgenommenen .wav-Dateien.
+out/
+data/
+config.yaml
+
+__pycache__/
+*.pyc
+
+# Der ETSI-Codec wird in der Build-Stufe geholt, nie mitgeliefert (Grundregel 1).
+codec/etsi_tetra_codec.zip
+codec/build/
+codec/*.so
+
+.git/
+.gitignore
+*.md
+scratchpad/

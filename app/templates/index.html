@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="de" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ app_name }}</title>
+<link rel="stylesheet" href="/static/style.css?v={{ ver }}">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"></path>
+      <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4"></path>
+      <circle cx="12" cy="12" r="2"></circle>
+      <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4"></path>
+      <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"></path>
+    </svg>
+    <div class="brand-text">
+      <div class="brand-name">{{ app_name }}</div>
+      <div class="brand-by">{{ app_by }}</div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="icon-btn" id="theme" title="Hell / Dunkel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+      </svg>
+    </button>
+    <form method="post" action="/logout">
+      <button class="icon-btn" title="Abmelden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+      </button>
+    </form>
+  </div>
+</header>
+
+<main>
+
+{% if may.status %}
+<section class="tab" id="tab-status">
+  <h2>Verbindung</h2>
+  <div class="card">
+    <div class="row">
+      <div><div class="label">brew-server</div><div class="big" id="brew-host">–</div></div>
+      <div class="dot" id="brew-dot"></div>
+    </div>
+    <div class="kv"><span>ISSI</span><b id="brew-issi">–</b></div>
+    <div class="kv"><span>Affiliiert auf</span><b id="brew-aff">–</b></div>
+    <div class="kv"><span>Audio-Backend</span><b id="brew-backend">–</b></div>
+    <div id="brew-error"></div>
+    <div id="pw-warn"></div>
+  </div>
+
+  <h2>Reflektoren</h2>
+  <div class="list" id="reflectors"></div>
+
+  <h2>Floor-Lock</h2>
+  <div class="card" id="floors"><div class="hint">Kein Reflektor belegt.</div></div>
+
+  <h2>Laufende Rufe</h2>
+  <div class="card" id="calls"><div class="hint">Gerade nichts.</div></div>
+
+  <h2>Last Heard</h2>
+  <div class="card" id="lastheard"><div class="hint">Noch nichts gehört.</div></div>
+
+  <h2>Bekannte Rufzeichen</h2>
+  <div class="card" id="subscribers"><div class="hint">Noch keine ISSI aufgelöst.</div></div>
+
+  <h2>Zähler</h2>
+  <div class="card" id="counters"></div>
+</section>
+{% endif %}
+
+{% if may.routes %}
+<section class="tab" id="tab-routes">
+  <div class="head-row">
+    <h2>Sprechgruppe</h2>
+    <button class="btn small" id="route-add">+ Zeile</button>
+  </div>
+  <p class="hint">DMO2TMO: genau eine feste Zuordnung GSSI ↔ TG, ohne
+    Umschaltung.</p>
+  <div id="route-out"></div>
+  <div id="routes"></div>
+
+  <dialog id="plan-dlg">
+    <div class="head-row">
+      <h2 id="plan-titel" style="margin:0">Zeitplan</h2>
+      <button class="btn small primary" style="width:auto" id="plan-close">Fertig</button>
+    </div>
+    <div class="form" id="plan-body"></div>
+  </dialog>
+</section>
+{% endif %}
+
+{% if may.sds %}
+<section class="tab" id="tab-sds">
+  <div class="head-row">
+    <h2>Kurznachrichten</h2>
+    <span class="sub" id="sds-counts"></span>
+  </div>
+  <div class="card">
+    <div class="form">
+      <label><span>Ziel-ISSI</span>
+        <input id="sds-to" inputmode="numeric" placeholder="2320997"></label>
+      <label><span>Text <span class="sub" id="sds-count"></span></span>
+        <textarea id="sds-text" rows="3" maxlength="1000"
+                  placeholder="Nachricht"></textarea></label>
+      <label><span>Zeichenkodierung</span>
+        <select id="sds-scheme">
+          <option value="sdstl">SDS-TL, PID 0x82 – wie TetraLink</option>
+          <option value="8bit">8-Bit (ISO 8859-1)</option>
+          <option value="ucs2">UCS-2 (Unicode)</option>
+          <option value="7bit">7-Bit (GSM)</option>
+          <option value="raw16">16-Bit roh – ohne Kodierungsbyte</option>
+          <option value="ascii">ASCII roh – ohne Kodierungsbyte</option>
+        </select></label>
+      <button class="btn primary" id="sds-send">Senden</button>
+    </div>
+    <p class="hint"><b>SDS-TL</b> ist die erste Wahl: genau das Format, das
+      TetraLink selbst sendet (PID 0x82 mit Kopf und Kodierungsbyte), und
+      das auch echte Funkgeräte verwenden. Die drei mittleren sind einfache
+      Text-PDUs nach ETSI (PID 0x02), die beiden <b>rohen</b> lassen das
+      Kodierungsbyte weg – ein Notnagel für Gegenstellen, die beim Lesen ein
+      Byte überspringen. Die Auswahl gilt sofort und auch für die Antworten
+      der TG-Steuerung; unter jeder Nachricht im Verlauf stehen die
+      Rohbytes, die tatsächlich über die Leitung gingen.</p>
+    <div id="sds-out"></div>
+  </div>
+
+  <div class="head-row">
+    <h2>Verlauf</h2>
+    <div class="log-tools">
+      <label class="switch inline"><input type="checkbox" id="sds-only-rx">
+        <span>nur empfangene</span></label>
+      <button class="btn small danger" id="sds-clear">Leeren</button>
+    </div>
+  </div>
+  <div class="list" id="sds-list"></div>
+</section>
+{% endif %}
+
+{% if may.log %}
+<section class="tab" id="tab-log">
+  <div class="head-row">
+    <h2>Log</h2>
+    <div class="log-tools">
+      <select id="log-level" style="width:auto">
+        <option value="">alle</option>
+        <option value="INFO">ab INFO</option>
+        <option value="WARNING">ab WARNUNG</option>
+        <option value="ERROR">nur Fehler</option>
+      </select>
+      <label class="switch inline"><input type="checkbox" id="log-follow" checked><span>Folgen</span></label>
+    </div>
+  </div>
+  <pre class="pre log" id="log"></pre>
+</section>
+{% endif %}
+
+{% if may.system %}
+<section class="tab" id="tab-system">
+  <h2>TETRA ↔ Reflektor</h2>
+  <div class="card">
+    <div class="form">
+      <label class="switch"><span>ISSI durchreichen</span>
+        <input type="checkbox" id="tetra-issi"></label>
+      <label class="switch"><span>SDS über den Reflektor</span>
+        <input type="checkbox" id="tetra-sds"></label>
+      <button class="btn primary" id="tetra-save">Übernehmen</button>
+    </div>
+    <p class="hint"><b>ISSI:</b> Die ISSI des TETRA-Sprechers geht an svxlink
+      und landet als <code>Qso:info</code> am Reflektor. Meldet ein anderes
+      TETRA-Gateway seinen Sprecher, wird dessen ISSI zur Quell-ISSI des
+      Gruppenrufs.</p>
+    <p class="hint"><b>SDS:</b> <code>to:OE1ABC:Text</code> (oder kurz
+      <code>OE1ABC:Text</code>) an die Brücke geht über den Reflektor an das
+      Gateway von OE1ABC. Kommt eine SDS für ein Rufzeichen herein, sucht die
+      Brücke die ISSI in den eigenen Namen und im Gehörten.</p>
+    <p class="hint">Braucht den gepatchten svxlink-Zweig (im Image) und
+      einen Reflektor mit <code>tetra-contrib</code>. Übernehmen startet
+      svxlink neu.</p>
+    <div id="tetra-out"></div>
+  </div>
+
+  <h2>Audiopegel</h2>
+  <div class="card">
+    <p class="hint">Gilt für alle Reflektoren gemeinsam. Je Richtung gibt es
+      zwei Stellschrauben — <b>nimm zuerst die in svxlink</b>: die verstärkt
+      in Fließkomma und begrenzt danach weich. Der Regler in der Brücke
+      arbeitet auf 16-Bit-PCM und schneidet hart ab, taugt also nur zum
+      Feintrimmen um wenige dB.</p>
+
+    <div class="form">
+      <div class="label" style="margin-top:4px">TETRA → svxlink</div>
+      <label><span>NET_PREAMP in svxlink (dB) – bevorzugt</span>
+        <input id="net-preamp" type="number" step="0.5" min="-30" max="30"></label>
+      <label><span>Feintrimm in der Brücke (dB)</span>
+        <input id="gain-svx" type="number" step="0.5" min="-30" max="30"></label>
+
+      <div class="label" style="margin-top:10px">svxlink → TETRA</div>
+      <label><span>PREAMP in svxlink (dB) – bevorzugt</span>
+        <input id="preamp" type="number" step="0.5" min="-30" max="30"></label>
+      <label><span>Feintrimm in der Brücke (dB)</span>
+        <input id="gain-tetra" type="number" step="0.5" min="-30" max="30"></label>
+
+      <div class="label" style="margin-top:10px">Nachlauf</div>
+      <label><span>svxlink → TETRA: Ruf noch offen halten (ms)</span>
+        <input id="hang-ms" type="number" step="100" min="0" max="3000"></label>
+
+      <button class="btn primary" id="gain-save">Übernehmen</button>
+    </div>
+    <p class="hint">Der Nachlauf hält den TETRA-Ruf nach dem Loslassen der
+      PTT noch kurz offen. Ohne ihn endet der Ruf hart und das letzte Wort
+      geht verloren; ein sofort folgender Durchgang hängt sich an, statt
+      neu aufzubauen. 0 schaltet ihn ab, er wirkt ohne Neustart.</p>
+    <p class="hint">Änderungen an den svxlink-Werten starten die Instanzen
+      automatisch neu, damit sie wirklich greifen – das kostet ein paar
+      Sekunden Audio. Die Brücken-Regler wirken sofort ohne Neustart.</p>
+    <div id="gain-out"></div>
+  </div>
+
+  <h2>Rufzeichenliste</h2>
+  <div class="card">
+    <p class="hint">Loest ISSIs in Rufzeichen auf - im Status, im Last Heard
+      und bei den Kurznachrichten. Die Liste kommt von radioid.net und wird
+      nur auf Knopfdruck geholt, nicht von selbst.</p>
+    <div class="form">
+      <label><span>Quelle</span><input id="idl-url"></label>
+      <button class="btn primary" id="idl-refresh">Aktualisieren</button>
+    </div>
+    <p class="hint" id="idl-status">&nbsp;</p>
+    <div id="idl-out"></div>
+  </div>
+
+  <h2>Eigene Namen</h2>
+  <div class="card">
+    <p class="hint">Schlagen die heruntergeladene Liste und das Rufzeichen des
+      Geräts. Gedacht für alles, was in keiner Datenbank steht - die Brücke
+      selbst zum Beispiel.</p>
+    <div class="list" id="idl-manual"></div>
+    <div class="form">
+      <label><span>ISSI</span>
+        <input id="idl-issi" inputmode="numeric" placeholder="2329999"></label>
+      <label><span>Name</span>
+        <input id="idl-name" placeholder="SVXTetraBridge"></label>
+      <button class="btn" id="idl-add">Eintragen</button>
+    </div>
+    <div id="idl-man-out"></div>
+  </div>
+
+  <h2>Dienste</h2>
+  <div class="list" id="services"></div>
+
+  {% if may.config %}
+  <h2>config.yaml</h2>
+  <div class="card">
+    <p class="hint">Alles, wofür es kein eigenes Formular gibt: brew-Zugang,
+      Audio-Backend und Gain, SDS-Control. Wird beim Speichern geprüft und
+      sofort übernommen.</p>
+    <div class="form">
+      <textarea id="cfg-text" class="pre" style="width:100%;min-height:38vh" spellcheck="false"></textarea>
+      <button class="btn primary" id="cfg-save">Speichern und übernehmen</button>
+    </div>
+    <div id="cfg-out"></div>
+  </div>
+  {% endif %}
+
+  <h2>svxlink.conf</h2>
+  <div class="card">
+    <div class="form">
+      <label><span>Instanz</span><select id="conf-name"></select></label>
+      <textarea id="conf-text" class="pre" style="width:100%;min-height:38vh" spellcheck="false"></textarea>
+      <button class="btn primary" id="conf-save">Speichern</button>
+    </div>
+    <p class="hint">Achtung: <code>confgen.py</code> schreibt diese Datei beim
+      nächsten Start der Brücke neu. Dauerhafte Änderungen gehören in die
+      <code>config.yaml</code>.</p>
+    <div id="conf-out"></div>
+  </div>
+
+  <h2>Sicherung</h2>
+  <div class="card">
+    <div class="btns">
+      <a class="btn" href="/api/backup" download>Herunterladen</a>
+      <button class="btn" id="restore-pick">Einspielen …</button>
+      <input type="file" id="restore-file" accept=".txt,.yaml,.yml" class="hidden">
+    </div>
+    <p class="hint">Die Sicherung enthält <code>config.yaml</code> und
+      <code>users.yaml</code>. Beim Einspielen wird nur die Konfiguration
+      übernommen – Benutzer und Passwörter bleiben unangetastet.</p>
+    <div id="restore-out"></div>
+  </div>
+
+  <h2>Eigenes Passwort</h2>
+  <div class="card">
+    <div class="form">
+      <label><span>Bisheriges Passwort</span><input type="password" id="pw-old"></label>
+      <label><span>Neues Passwort (mind. 8 Zeichen)</span><input type="password" id="pw-new"></label>
+      <button class="btn primary" id="pw-save">Ändern</button>
+    </div>
+    <div id="pw-out"></div>
+  </div>
+
+  {% if may.users %}
+  <h2>Benutzer</h2>
+  <div class="list" id="users"></div>
+  <div class="card">
+    <div class="form">
+      <label><span>Neuer Benutzer</span><input id="nu-name" placeholder="rufzeichen"></label>
+      <label><span>Passwort (mind. 8 Zeichen)</span><input type="password" id="nu-pw"></label>
+      <div id="nu-areas"></div>
+      <button class="btn primary" id="nu-add">Anlegen</button>
+    </div>
+    <div id="nu-out"></div>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+</main>
+
+<div class="savebar hidden" id="savebar">
+  <span id="savebar-text">Ungespeicherte Änderungen</span>
+  <div class="btns">
+    <button class="btn small" id="save-cancel">Verwerfen</button>
+    <button class="btn small primary" style="width:auto" id="save-go">Speichern</button>
+  </div>
+</div>
+
+<nav class="tabs">
+  {% for key, title in tabs %}
+  <button data-tab="{{ key }}">
+    {% if key == 'status' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+    {% elif key == 'routes' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="6" cy="19" r="3"></circle><circle cx="18" cy="5" r="3"></circle>
+      <path d="M9 19h4a5 5 0 0 0 5-5V8"></path></svg>
+    {% elif key == 'sds' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"></path></svg>
+    {% elif key == 'log' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 21h9a3 3 0 0 0 3-3V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v13"></path>
+      <path d="M8 21a3 3 0 0 1-3-3v-1h6v1a3 3 0 0 1-3 3Z"></path>
+      <line x1="9" y1="7" x2="16" y2="7"></line><line x1="9" y1="11" x2="16" y2="11"></line></svg>
+    {% else %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"></path></svg>
+    {% endif %}
+    <span>{{ title }}</span>
+  </button>
+  {% endfor %}
+</nav>
+
+<script>window.MAY = {{ may | tojson }};</script>
+<script src="/static/app.js?v={{ ver }}"></script>
+</body>
+</html>

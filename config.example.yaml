@@ -1,0 +1,86 @@
+# DMO2TMO SVXBridge - Beispielkonfiguration
+#
+# Kopieren nach config.yaml und anpassen.
+
+log_level: INFO
+timezone: "Europe/Vienna"
+
+brew:
+  url: "http://127.0.0.1:9000"     # dein brew-server
+  path: "/brew/"
+  username: "100000001"            # Digest-User aus brew-server.toml
+  password: "change-me-bs1"
+  issi: 2320997                    # ISSI, mit der sich die Bruecke anmeldet
+  mode: "Terminal"                 # Terminal | Basestation
+  user_agent: "dmo2tmo-svxbridge/0.1"
+  brew_version: 1
+  verify_tls: true                 # bei self-signed cert auf false
+  reconnect_min_seconds: 2
+  reconnect_max_seconds: 60
+  ping_interval_seconds: 20
+
+status_server:
+  enabled: true
+  listen: "0.0.0.0"
+  port: 3006
+
+sds_control:
+  # Bei DMO2TMO gibt es keine TG-Kommandos mehr. Uebrig bleibt die
+  # Kodierung fuer SDS, die die Bruecke verschickt.
+  coding_scheme: "8bit"            # 8bit | 7bit | ucs2 | raw16 | sdstl
+
+tetra:
+  # Braucht svxlink mit svxlink/patches/01-usrplogic-tetra.patch (baut das
+  # Dockerfile mit) und einen Reflektor mit tetra-contrib.
+  issi_passthrough: true           # ISSI des Sprechers in beide Richtungen
+  sds_forward: true                # Text-SDS ueber den Reflektor
+
+audio:
+  # loopback = Etappe 2: ACELP-Frames unveraendert auf target_gssi
+  #            zurueckspiegeln, zum Testen ohne Codec und ohne svxlink
+  # null     = alles verwerfen, nur mitzaehlen
+  # usrp     = Betrieb mit svxlink (im Container)
+  backend: "usrp"
+  # Audiopegel in dB, global. Grosse Anhebungen gehoeren nach svxlink
+  # (net_preamp/preamp): dort wird weich begrenzt, in der Bruecke hart.
+  net_preamp_db: 7.0    # in svxlink, Richtung TETRA -> svxlink
+  preamp_db: 8.5        # in svxlink, Richtung svxlink -> TETRA
+  gain_svx_db: 0.0      # Feintrimm in der Bruecke
+  gain_tetra_db: 0.0    # Feintrimm in der Bruecke
+  loopback:
+    target_gssi: 2324
+    source_issi: 2320998
+    callsign: "OE4SXM"
+
+reflectors:
+  # DMO2TMO: genau ein Reflektor, eine svxlink-Instanz.
+  #
+  # usrp_port        wohin die Bruecke sendet  -> svxlinks USRP_RX_PORT
+  # usrp_listen_port worauf die Bruecke hoert  -> svxlinks USRP_TX_PORT
+  - name: "R1"
+    host: "reflector.example.org"
+    port: 5300
+    callsign: "OE0XXX-T"
+    auth_key: "change-me"
+    logic_type: "ReflectorV2"
+    usrp_port: 41234
+    usrp_listen_port: 41244
+    default_tg: 2321
+    enabled: true
+
+routes:
+  # Genau eine feste Sprechgruppe: GSSI auf TETRA-Seite <-> TG am Reflektor.
+  - name: "DMO2TMO"
+    gssi: 2321
+    reflector: "R1"
+    tg: 2321
+    type: "fixed"
+    priority: 10
+    enabled: true
+    shutdown_mode: "grace"         # grace = Nachlaufzeit | hard = Punkt aus
+    grace_minutes: 5
+    max_extend_minutes: 120        # 0 = keine Obergrenze
+    schedule:
+      enabled: false
+      days: [MO, TU, WE, TH, FR, SA, SU]
+      windows: []
