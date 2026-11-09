@@ -517,7 +517,10 @@ async def api_tetra_fw(request: web.Request):
             **asdict(cfg.tetra_fw),
             # Vorbelegung fuer das Feld Gateway-Call
             "default_call": reflektor.callsign if reflektor else "",
+            "default_dashboard_url": (f"http://{reflektor.host}/"
+                                      if reflektor and reflektor.host else ""),
             "status": sender.status(),
+            "dashboard": _dashboard_status(request),
         })
     data = await request.json()
     raw = cfg.to_dict()
@@ -533,7 +536,44 @@ async def api_tetra_fw(request: web.Request):
             fw["port"] = int(data["port"])
         except (TypeError, ValueError):
             raise web.HTTPBadRequest(text="port: keine ganze Zahl")
+    if "dashboard_issi" in data:
+        fw["dashboard_issi"] = bool(data["dashboard_issi"])
+    if "dashboard_url" in data:
+        fw["dashboard_url"] = str(data["dashboard_url"] or "").strip()
+    if "dashboard_max_age" in data:
+        try:
+            fw["dashboard_max_age"] = int(data["dashboard_max_age"])
+        except (TypeError, ValueError):
+            raise web.HTTPBadRequest(text="dashboard_max_age: keine ganze Zahl")
     return await _apply(request, raw, "Lastheard-Einstellungen")
+
+
+def _dashboard_status(request: web.Request) -> dict:
+    d = request.app["router"].dashboard
+    return {"hits": d.hits, "misses": d.misses, "last_error": d.last_error,
+            "last_fetch": d.last_fetch}
+
+
+@needs("system")
+async def api_dashboard_test(request: web.Request):
+    """Dashboard einmal lesen und zeigen, was der Parser daraus macht."""
+    cfg: cfgmod.Config = request.app["cfg"]
+    reflektor = cfg.active_reflector()
+    url = request.query.get("url") or cfg.tetra_fw.dashboard_url_for(
+        reflektor.host if reflektor else "")
+    if not url:
+        raise web.HTTPBadRequest(text="Keine Dashboard-Adresse")
+    router = request.app["router"]
+    eintraege = await router.dashboard.eintraege(url, force=True)
+    return web.json_response({
+        "url": url,
+        "error": router.dashboard.last_error,
+        "count": len(eintraege),
+        "entries": [{"gateway": e.gateway, "call": e.call, "issi": e.issi,
+                     "time": e.zeit_text,
+                     "age": round(time.time() - e.zeit) if e.zeit else None}
+                    for e in eintraege[:8]],
+    })
 
 
 @needs("system")
@@ -868,6 +908,7 @@ def build_app(cfg, state, router, client, *, config_path: str,
     app.router.add_get("/api/nodeinfo", api_nodeinfo)
     app.router.add_post("/api/nodeinfo", api_nodeinfo)
     app.router.add_post("/api/tetra_fw", api_tetra_fw)
+    app.router.add_get("/api/tetra_fw/dashboard", api_dashboard_test)
     app.router.add_get("/api/audio", api_audio)
     app.router.add_post("/api/audio", api_audio)
     app.router.add_get("/api/config", api_config)

@@ -44,6 +44,11 @@ tetra_fw:
   gateway_lat: ""                  # ggmm.mm, z.B. "4816.82" - leer = keine Bake
   gateway_lon: ""                  # gggmm.mm, z.B. "01624.91"
   port: 5220
+  # Rueckweg: ISSI/Rufzeichen fremder Sprecher aus dem Lastheard des
+  # Dashboards nachschlagen (siehe app/oe_dashboard.py)
+  dashboard_issi: false
+  dashboard_url: ""                # leer = http://<Reflektor-Host>/
+  dashboard_max_age: 30            # Sekunden
 
 audio:
   # loopback = Etappe 2: ACELP-Frames unveraendert auf target_gssi

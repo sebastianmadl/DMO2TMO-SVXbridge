@@ -292,6 +292,15 @@
         <input id="fw-lon" placeholder="01624.91" autocomplete="off"></label>
       <label><span>UDP-Port</span>
         <input id="fw-port" type="number" min="1" max="65535"></label>
+
+      <div class="label" style="margin-top:10px">Rückweg: ISSI fremder Sprecher</div>
+      <label class="switch"><span>Quell-ISSI aus dem Dashboard</span>
+        <input type="checkbox" id="fw-dash"></label>
+      <label><span>Dashboard-Adresse (leer = Reflektor-Host)</span>
+        <input id="fw-dash-url" autocomplete="off"></label>
+      <label><span>Höchstalter der VOICE-Zeile (s)</span>
+        <input id="fw-dash-age" type="number" min="1" max="3600"></label>
+      <button class="btn" id="fw-dash-test">Dashboard jetzt lesen</button>
       <button class="btn primary" id="fw-save">Übernehmen</button>
     </div>
     <p class="hint">Der OE-Verbund zeigt Lastheard nicht über svxlink an,
@@ -302,7 +311,14 @@
     <p class="hint">Gateway-Call leer = Node-Rufzeichen des Reflektors. Mit
       Position meldet sich die Brücke beim Start (und nach dem Übernehmen)
       sechsmal mit einer POS-Zeile. Wirkt ohne Neustart.</p>
+    <p class="hint"><b>Rückweg:</b> Spricht ein anderes Gateway (z.B.
+      <code>OE1XCS-T</code>), liest die Brücke das Lastheard des Dashboards und
+      nimmt ISSI und Rufzeichen aus dessen jüngster VOICE-Zeile als Quelle des
+      Gruppenrufs. Ist die Zeile älter als das Höchstalter, bleibt es bei der
+      Brücken-ISSI. Der Rufaufbau wartet dafür höchstens 1,5 s; das Audio wird
+      so lange gepuffert.</p>
     <p class="hint" id="fw-status">&nbsp;</p>
+    <pre class="pre hidden" id="fw-dash-out"></pre>
     <div id="fw-out"></div>
   </div>
 

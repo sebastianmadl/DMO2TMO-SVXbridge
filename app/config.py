@@ -319,6 +319,14 @@ class TetraFwConfig:
     gateway_lat: str = ""
     gateway_lon: str = ""
     port: int = TETRA_FW_PORT
+    # Rueckweg: ISSI und Rufzeichen eines fremden Sprechers aus dem
+    # Lastheard des OE-Dashboards (siehe app/oe_dashboard.py).
+    dashboard_issi: bool = False
+    dashboard_url: str = ""       # leer = http://<Reflektor-Host>/
+    dashboard_max_age: int = 30   # Sekunden; aelter gilt als anderer Durchgang
+
+    def dashboard_url_for(self, host: str) -> str:
+        return self.dashboard_url or (f"http://{host}/" if host else "")
 
     def validate(self) -> None:
         for name in ("gateway_call", "gateway_comment"):
@@ -338,6 +346,12 @@ class TetraFwConfig:
             raise ConfigError("tetra_fw: Breite und Laenge nur gemeinsam")
         if not 1 <= int(self.port) <= 65535:
             raise ConfigError("tetra_fw.port: 1 bis 65535")
+        if self.dashboard_url and not self.dashboard_url.startswith(
+                ("http://", "https://")):
+            raise ConfigError("tetra_fw.dashboard_url: muss mit http:// oder "
+                              "https:// beginnen")
+        if not 1 <= int(self.dashboard_max_age) <= 3600:
+            raise ConfigError("tetra_fw.dashboard_max_age: 1 bis 3600 s")
 
 
 @dataclass

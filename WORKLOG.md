@@ -30,6 +30,17 @@ Chronologie der Arbeiten. Neueste oben.
   Empfaenger, JSON) - Formular und JSON zeigen dasselbe Objekt.
 - Lastheard-Zeit mit vierstelligem Jahr (`09.11.2026 12:51:22`) wie bei
   den anderen Gateways am OE-Dashboard.
+- **Rueckweg Quell-ISSI aus dem OE-Dashboard** (`app/oe_dashboard.py`,
+  Wunsch Sebastian): bei Sprechbeginn eines fremden Gateways Lastheard des
+  Dashboards lesen, juengste VOICE-Zeile dieses Gateways (hoechstens
+  `dashboard_max_age` s alt) -> ISSI als Quell-ISSI, Rufzeichen als
+  Mnemonic. GROUP_TX wartet bis 1,5 s, Audio wird so lange gepuffert.
+  Parser sucht die Kopfzeile Gateway/Time/Call/Type/ID statt fester
+  Klassen. Default aus. WebUI: Schalter, Adresse (leer = Reflektor-Host),
+  Hoechstalter, Knopf „Dashboard jetzt lesen“.
+  **Gegen das echte Dashboard nicht getestet** - von hier nicht erreichbar,
+  Parser nach dem Screenshot gebaut. robots.txt des Dashboards sperrt
+  Crawler; Abruf nur einmal je Sprechbeginn (2 s Cache).
 - **Offen, nur live pruefbar:** ob der Server dedupliziert, ob VOICE zu
   Sprechbeginn das ist, was das Dashboard erwartet.
 

@@ -757,6 +757,20 @@ $("ni-save")?.addEventListener("click", async () => {
   } catch (e) { note($("ni-out"), e.message, true); }
 });
 
+$("fw-dash-test")?.addEventListener("click", async () => {
+  const out = $("fw-dash-out");
+  out.classList.remove("hidden");
+  out.textContent = "lese …";
+  try {
+    const url = $("fw-dash-url").value.trim();
+    const d = await api("/api/tetra_fw/dashboard" + (url ? "?url=" + encodeURIComponent(url) : ""));
+    if (d.error) { out.textContent = d.error; return; }
+    out.textContent = `${d.url}\n${d.count} VOICE-Zeilen erkannt\n\n` +
+      d.entries.map((e) => `${e.gateway.padEnd(10)} ${e.call.padEnd(8)} ${String(e.issi).padEnd(8)} ${e.time}` +
+                          (e.age != null ? `  (vor ${e.age} s)` : "")).join("\n");
+  } catch (e) { out.textContent = e.message; }
+});
+
 function fwStatusText(st) {
   if (!st.host) return "Kein aktiver Reflektor mit Host – Lastheard geht nirgends hin.";
   let t = `Ziel ${st.host}:${st.port} · TG ${st.tg} · ${st.sent} gesendet`;
@@ -778,6 +792,10 @@ async function loadTetraFw(force) {
     $("fw-lat").value = d.gateway_lat || "";
     $("fw-lon").value = d.gateway_lon || "";
     $("fw-port").value = d.port;
+    $("fw-dash").checked = !!d.dashboard_issi;
+    $("fw-dash-url").value = d.dashboard_url || "";
+    $("fw-dash-url").placeholder = d.default_dashboard_url || "http://…/";
+    $("fw-dash-age").value = d.dashboard_max_age;
     $("fw-status").textContent = fwStatusText(d.status);
     $("fw-enabled").dataset.loaded = "1";
   } catch (e) { note($("fw-out"), e.message, true); }
@@ -791,6 +809,9 @@ $("fw-save")?.addEventListener("click", async () => {
       gateway_lat: $("fw-lat").value,
       gateway_lon: $("fw-lon").value,
       port: Number($("fw-port").value),
+      dashboard_issi: $("fw-dash").checked,
+      dashboard_url: $("fw-dash-url").value,
+      dashboard_max_age: Number($("fw-dash-age").value),
     });
     note($("fw-out"), d.hinweis);
     loadTetraFw(true);

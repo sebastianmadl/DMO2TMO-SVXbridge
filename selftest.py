@@ -388,6 +388,114 @@ def test_router_tetra():
     asyncio.run(router.on_svx_stop("R1"))
 
 
+DASH_HTML = """<html><body><table>
+<tr><th colspan=9>SVXReflector-Dashboard</th></tr>
+<tr><th>Gateway</th><th>Comment</th><th>Connected since</th><th>Network address</th>
+<th>state</th><th>TG</th><th>TX on</th><th>TX off</th><th>Monitor TG</th></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg/430.3375</td><td>09.11.2026<br>01:00:40</td>
+<td>92.248.40.136</td><td></td><td>IDLE</td><td>12:41:19</td><td>12:51:53</td><td>[ 9 20 232 ]</td></tr>
+<tr><th colspan=9>Lastheard</th></tr>
+<tr><th>Gateway</th><th>Comment</th><th>Time sort v</th><th>Call</th><th>Type</th>
+<th>TG</th><th>ID</th><th>-</th><th>POS</th></tr>
+<tr><td>OE4SXM-R</td><td>OE4SXM-R / TEST</td><td>09.11.26 12:51:22</td><td>OE4SXM</td>
+<td>VOICE</td><td>#232</td><td>2320997</td><td></td><td></td></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>09.11.2026<br>12:41:19</td><td>OE1AVO</td>
+<td>VOICE</td><td>#232</td><td>2328888</td><td></td><td></td></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>09.11.2026<br>11:56:30</td><td>OE1CJG</td>
+<td>VOICE</td><td>#232</td><td>2320800</td><td></td><td></td></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>09.11.2026<br>12:30:04</td><td>OE1CJG</td>
+<td>GPS</td><td>#232</td><td>2320800</td><td><a href="#">aprs.fi</a></td><td>E;01625.16;N;4810.25;000.0;</td></tr>
+</table></body></html>"""
+
+
+def test_dashboard():
+    print("Quell-ISSI aus dem OE-Dashboard:")
+    import asyncio
+    from app import oe_dashboard as od
+    from app.routing import Router
+    from app.state import AppState
+
+    e = od.parse(DASH_HTML)
+    check("nur VOICE-Zeilen, Knoten-Tabelle ignoriert", len(e) == 3,
+          str([(x.gateway, x.call) for x in e]))
+    check("juengste zuerst", e and e[0].call == "OE4SXM", str(e[:1]))
+    check("<br> zwischen Datum und Uhrzeit wird gelesen",
+          any(x.call == "OE1AVO" and x.zeit for x in e))
+    t = time.mktime((2026, 11, 9, 12, 41, 30, 0, 0, -1))
+    treffer = od.finde(e, "oe1xcs-t", 30, jetzt=t)
+    check("juengste VOICE des Gateways", treffer and treffer.issi == 2328888
+          and treffer.call == "OE1AVO", str(treffer))
+    check("zu alt -> nichts", od.finde(e, "OE1XCS-T", 5, jetzt=t) is None)
+    check("unbekanntes Gateway -> nichts", od.finde(e, "OE9XXX-R", 30, jetzt=t) is None)
+
+    raw = _example_raw()
+    _abgelehnt("dashboard_url ohne http wird abgelehnt",
+               {**raw, "tetra_fw": {"dashboard_url": "dash.example.org"}})
+
+    # Router: Rufaufbau wartet auf das Nachschlagen, Audio wird gepuffert
+    cfg = cfgmod.from_dict({**raw, "tetra_fw": {
+        "dashboard_issi": True, "dashboard_url": "http://dash.invalid/"}})
+    router = Router(cfg, AppState())
+    log_ = []
+
+    class FakeClient:
+        connected = True
+        def group_tx(self, gssi, source=None, callsign="", priority=0,
+                     identifier=None):
+            log_.append(("tx", source, callsign))
+        def group_idle(self, identifier, cause=0):
+            log_.append(("idle",))
+        def traffic(self, identifier, data):
+            log_.append(("frame",))
+    router.attach(FakeClient())
+
+    class FakeCodec:
+        def encode_frame(self, pcm):
+            return 0, 0
+    router._tx_codecs["R1"] = FakeCodec()
+
+    async def nachschlagen(url, gateway, max_age):
+        await asyncio.sleep(0.05)
+        return od.Eintrag("OE1XCS-T", "OE1AVO", 2328888, time.time(), "")
+    router.dashboard.issi_fuer = nachschlagen
+
+    async def lauf():
+        start = asyncio.create_task(router.on_svx_start("R1", "OE1XCS-T", 2321))
+        await asyncio.sleep(0.01)
+        await router.on_svx_frame("R1", bytes(480))   # kommt waehrend der Abfrage
+        await start
+        await router.on_svx_frame("R1", bytes(480))
+        await router.on_svx_stop("R1")
+    asyncio.run(lauf())
+    check("GROUP_TX mit ISSI und Rufzeichen aus dem Dashboard",
+          log_ and log_[0] == ("tx", 2328888, "OE1AVO"), repr(log_))
+    check("gepuffertes Audio nach dem GROUP_TX, nichts verloren",
+          [x[0] for x in log_] == ["tx", "frame", "frame", "idle"], repr(log_))
+
+    log_.clear()
+    async def nichts(url, gateway, max_age):
+        return None
+    router.dashboard.issi_fuer = nichts
+    asyncio.run(router.on_svx_start("R1", "OE1XCS-T", 2321))
+    asyncio.run(router.on_svx_stop("R1"))
+    check("nichts gefunden -> Bruecken-ISSI, Node-Rufzeichen",
+          log_ and log_[0] == ("tx", None, "OE1XCS-T"), repr(log_))
+
+    log_.clear()
+    async def langsam(url, gateway, max_age):
+        await asyncio.sleep(0.05)
+        return None
+    router.dashboard.issi_fuer = langsam
+    async def kurz():
+        start = asyncio.create_task(router.on_svx_start("R1", "OE1XCS-T", 2321))
+        await asyncio.sleep(0.01)
+        await router.on_svx_stop("R1")
+        await start
+    asyncio.run(kurz())
+    check("Durchgang vor dem Rufaufbau zu Ende: weder TX noch IDLE",
+          log_ == [] and not router.floors, repr(log_))
+
+
 def test_usrp():
     print("USRP-Pakete (gegen die Mitschnitte in usrp_protocol.txt):")
 
@@ -1068,7 +1176,7 @@ def main() -> int:
         test_usrp, test_confgen, test_gain, test_web,
         test_schedule_grace, test_schedule_hard, test_schedule_cap,
         test_schedule_overnight, test_config, test_router_tetra,
-        test_tetra_fw, test_nodeinfo,
+        test_tetra_fw, test_nodeinfo, test_dashboard,
     ):
         test()
         print()

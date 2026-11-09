@@ -31,6 +31,7 @@ from .brew.client import BrewHandler
 from .schedule import RouteScheduler
 from .state import AppState, LastHeardEntry
 from .tetra_fw import TetraFwSender
+from .oe_dashboard import DashboardLookup
 
 log = logging.getLogger("routing")
 
@@ -87,6 +88,10 @@ class OutboundCall:
     started: float = field(default_factory=time.time)
     frames: int = 0
     issi: Optional[int] = None      # durchgereichte Quell-ISSI, falls bekannt
+    # Solange die ISSI noch im Dashboard nachgeschlagen wird, ist der
+    # GROUP_TX noch nicht draussen - Audio wird so lange gepuffert.
+    pending: bool = False
+    buffer: list = field(default_factory=list)
 
     @property
     def duration(self) -> float:
@@ -142,6 +147,8 @@ class Router(BrewHandler):
         # Lastheard an den TETRA-AUSTRIA-Verbund (UDP 5220). Liest die
         # Config ueber self.cfg, ein Reload greift also sofort.
         self.tetra_fw = TetraFwSender(lambda: self.cfg)
+        # Quell-ISSI fremder Sprecher aus dem OE-Dashboard
+        self.dashboard = DashboardLookup()
         self._bg_tasks: set = set()
 
     def _mark_dynamic(self, route: cfgmod.Route) -> None:
@@ -704,29 +711,74 @@ class Router(BrewHandler):
             issi = getattr(src, "talker_issi", 0) or 0
             if 0 < issi <= MAX_ISSI:
                 quelle = issi
-        self.client.group_tx(route.gssi, callsign=callsign,
-                             identifier=identifier, source=quelle)
-        self.outbound[reflector_name] = OutboundCall(
+
+        call = OutboundCall(
             identifier=identifier,
             route=route,
             reflector=reflector_name,
             callsign=callsign,
         )
+        self.outbound[reflector_name] = call
         self.state.bump("calls_tx")
         self.schedulers[route.gssi].note_traffic_start()
         if route.type == cfgmod.ROUTE_DYNAMIC:
             self.dynamic_last_used[route.gssi] = time.time()
-        self.outbound[reflector_name].issi = quelle
+
+        fw = self.cfg.tetra_fw
+        if quelle is None and fw.dashboard_issi and callsign:
+            # Audio, das waehrend des Nachschlagens kommt, puffert
+            # on_svx_frame - der GROUP_TX geht erst danach hinaus, weil sich
+            # seine Quell-ISSI spaeter nicht mehr aendern laesst.
+            call.pending = True
+            reflektor = self.cfg.reflector(reflector_name)
+            url = fw.dashboard_url_for(reflektor.host if reflektor else "")
+            eintrag = None
+            if url:
+                try:
+                    eintrag = await self.dashboard.issi_fuer(
+                        url, callsign, fw.dashboard_max_age)
+                except Exception:
+                    log.exception("Dashboard-Abfrage gescheitert")
+            if self.outbound.get(reflector_name) is not call:
+                # Durchgang war schon zu Ende, bevor wir senden konnten
+                log.info("SVX %s: Durchgang vor dem Rufaufbau zu Ende",
+                         reflector_name)
+                return
+            if eintrag is not None:
+                quelle = eintrag.issi
+                if eintrag.call:
+                    call.callsign = eintrag.call
+                log.info("Dashboard: %s spricht als %s / ISSI %s (%s)",
+                         callsign, eintrag.call or "?", eintrag.issi,
+                         eintrag.zeit_text)
+            else:
+                log.info("Dashboard: keine frische VOICE-Zeile fuer %s",
+                         callsign)
+
+        self.client.group_tx(route.gssi, callsign=call.callsign,
+                             identifier=identifier, source=quelle)
+        call.issi = quelle
+        if call.pending:
+            call.pending = False
+            gepuffert, call.buffer = call.buffer, []
+            for pcm in gepuffert:
+                self._encode_and_send(call, pcm)
         log.info("TX %s/TG %s -> GSSI %s%s%s", reflector_name,
                  self.target_tg(route), route.gssi,
-                 f" ({callsign})" if callsign else "",
+                 f" ({call.callsign})" if call.callsign else "",
                  f" von ISSI {quelle}" if quelle else "")
 
     async def on_svx_frame(self, reflector_name: str, pcm: bytes) -> None:
         call = self.outbound.get(reflector_name)
         if call is None or self.client is None:
             return
-        codec = self._tx_codec_or_none(reflector_name)
+        if call.pending:
+            call.buffer.append(pcm)
+            return
+        self._encode_and_send(call, pcm)
+
+    def _encode_and_send(self, call: OutboundCall, pcm: bytes) -> None:
+        codec = self._tx_codec_or_none(call.reflector)
         if codec is None:
             return
         sub1, sub2 = codec.encode_frame(apply_gain(pcm, self.cfg.audio.tetra_factor))
@@ -738,7 +790,9 @@ class Router(BrewHandler):
         call = self.outbound.pop(reflector_name, None)
         if call is None:
             return
-        if self.client is not None:
+        # Noch beim Nachschlagen: der GROUP_TX ist nie hinausgegangen, also
+        # auch kein GROUP_IDLE.
+        if self.client is not None and not call.pending:
             self.client.group_idle(call.identifier)
         self._release_floor(call.identifier)
         self.schedulers[call.route.gssi].note_traffic_end()
