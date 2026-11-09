@@ -65,22 +65,29 @@ Chronologie der Arbeiten. Neueste oben.
 
 ### Als nächstes (TODO)
 
-1. **`tetra_fw`-Lastheard-Sender bauen** (UDP → `<reflector>:5220`):
+1. **`tetra_fw`-Lastheard-Sender bauen** (UDP → SvxReflector:5220):
+   - Ziel = **dieselbe Adresse wie der svxlink-Reflektor** (Host aus dem
+     Reflektor-Eintrag der Brücke), Port 5220. Kein eigener Host nötig.
    - VOICE-Zeile bei jedem Durchgang (Format siehe Protokoll-Doc §3).
    - Start-Bake (POS 6×) optional.
-   - Rufzeichen aus `AppState.callsign(issi)`.
-2. **Config-Abschnitt `tetra_fw`** übernehmen, orientiert an
-   `tetra_link_gw.conf` (`GATEWAY_CALL`, `GATEWAY_COMMENT`,
-   `GATEWAY_LAT/LON`, `REFLECTOR_DNS`, `REFLECTOR_PORT`) — alles in der
-   WebUI editierbar (Grundregel 4).
-3. **Gegenprüfen**: Host/Port des Lastheard-Servers (ein Host für Audio +
-   Lastheard? siehe Protokoll-Doc §9), Dedup-Verhalten, VOICE-Timing.
+   - `call`-Feld = Rufzeichen des Sprechers aus `AppState.callsign(issi)`.
+2. **Config-Abschnitt `tetra_fw`** (alles in der WebUI editierbar,
+   Grundregel 4):
+   - `gateway_call` — **frei wählbar**, in der UI **vorbefüllt mit dem
+     Login-Callsign** des Reflektor-Eintrags (`reflector.callsign`).
+   - `gateway_comment` — frei wählbar.
+   - `gateway_lat` / `gateway_lon` — eigene Position (für Start-Bake).
+   - `enabled` — Schalter.
+   - Host/Port **nicht** als eigene Felder: Host wird vom Reflektor-Eintrag
+     übernommen, Port fix 5220 (bzw. ein Feld mit Default 5220).
+3. **Gegenprüfen**: Dedup-Verhalten des Servers, VOICE-Timing
+   (Sprechbeginn vs. -ende).
 4. Später: SDS-Brücke ins `PC:`/`GC:`-Format des OE-Verbunds.
 5. Pegel mit echter Sprache nachmessen (preamp_db −3–4 dB, alter TODO 3).
 
-### Offene Fragen an Sebastian
+### Entscheidungen (geklärt mit Sebastian)
 
-- Lastheard-Host/Port: derselbe wie Audio (195.26.215.3) oder
-  `tetra-reflector.dyndns.org`?
-- Werte für `GATEWAY_CALL` (z.B. `OE4SXM-R`) und `GATEWAY_COMMENT`
-  (z.B. `Tetra-OE4SXM/430.0000`) für die Lastheard-Zeilen.
+- **Lastheard-Ziel:** dieselbe Adresse wie der SvxReflector (ein Host für
+  Audio 5210 + Lastheard 5220).
+- **Gateway-Call & Comment:** frei in der UI wählbar; Call dabei mit dem
+  Login-Callsign vorbefüllt.

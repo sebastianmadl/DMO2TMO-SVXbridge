@@ -252,17 +252,20 @@ kleinen Ausgang**: einen UDP-Sender, der bei jedem Durchgang eine
 VOICE-Zeile nach Abschnitt 3 an `<reflector>:5220` schickt — parallel zum
 bestehenden svxlink-Audio. Rein additiv, kein svxlink-Patch nötig.
 
-Umzusetzen:
-1. Config-Abschnitt `tetra_fw` (Host, Port, Gateway-Call, Comment, eigene
-   Pos) — alles in der WebUI editierbar (Grundregel 4).
+Umzusetzen (Entscheidungen mit Sebastian geklärt):
+1. Config-Abschnitt `tetra_fw` in der WebUI editierbar (Grundregel 4):
+   - `gateway_call` — frei wählbar, **vorbefüllt mit dem Login-Callsign**
+     des Reflektor-Eintrags (`reflector.callsign`).
+   - `gateway_comment` — frei wählbar.
+   - `gateway_lat` / `gateway_lon` — eigene Position (Start-Bake).
+   - `enabled` — Schalter; Port-Feld mit Default 5220.
+   - **Host wird NICHT separat gesetzt** → Lastheard geht an **dieselbe
+     Adresse wie der SvxReflector** (ein Host für Audio + Lastheard).
 2. UDP-Sender-Modul, das VOICE bei Sprechbeginn und (optional) eine
-   Start-Bake (POS 6×) sendet, Rufzeichen aus `AppState.callsign(issi)`.
+   Start-Bake (POS 6×) sendet. `call`-Feld = `AppState.callsign(issi)`.
 3. Später optional: SDS per `PC:`/`GC:` in denselben Kanal.
 
 Offen / gegenzuprüfen:
-- **[angenommen]** Ob Lastheard-UDP an denselben Host wie das Audio
-  (195.26.215.3) geht oder an `tetra-reflector.dyndns.org`. In der
-  Gateway-Config ist es **ein** Host für beides via `REFLECTOR_DNS`.
 - **[angenommen]** Ob der Server pro Gateway-Call dedupliziert oder jede
   VOICE-Zeile einzeln listet.
 - Exakte Reihenfolge/Timing von VOICE bei Sprechbeginn vs. -ende.
