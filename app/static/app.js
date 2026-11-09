@@ -39,7 +39,7 @@ function showTab(key) {
     s.classList.toggle("active", s.id === "tab-" + key));
   try { localStorage.setItem("tab", key); } catch (e) {}
   if (key === "system") {
-    renderServices(); loadUsers(); loadConfig(); loadGain(); loadTetra(); loadTetraFw(); loadIdlist();
+    renderServices(); loadUsers(); loadConfig(); loadGain(); loadTetra(); loadTetraFw(); loadNodeInfo(); loadIdlist();
   }
   if (key === "routes") loadRoutes();
   if (key === "sds") pollSds();
@@ -651,6 +651,28 @@ $("tetra-save")?.addEventListener("click", async () => {
     });
     note($("tetra-out"), d.hinweis);
   } catch (e) { note($("tetra-out"), e.message, true); }
+});
+
+async function loadNodeInfo() {
+  if (!window.MAY.system || !$("ni-location") || $("ni-location").dataset.loaded) return;
+  try {
+    const d = await api("/api/nodeinfo");
+    $("ni-call").value = d.callsign || "";
+    $("ni-location").value = d.node_location || "";
+    $("ni-sysop").value = d.sysop || "";
+    $("ni-extra").value = d.node_info_extra || "";
+    $("ni-location").dataset.loaded = "1";
+  } catch (e) { note($("ni-out"), e.message, true); }
+}
+$("ni-save")?.addEventListener("click", async () => {
+  try {
+    const d = await post("/api/nodeinfo", {
+      node_location: $("ni-location").value,
+      sysop: $("ni-sysop").value,
+      node_info_extra: $("ni-extra").value,
+    });
+    note($("ni-out"), d.hinweis);
+  } catch (e) { note($("ni-out"), e.message, true); }
 });
 
 function fwStatusText(st) {

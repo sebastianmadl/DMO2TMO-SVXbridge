@@ -147,12 +147,41 @@ class Reflector:
     pty_enabled: bool = False
     dtmf_pty: str = ""            # leer = /data/pty/<name>
 
+    # Node-Info, die svxlink beim Anmelden an den Reflektor schickt
+    # (NODE_INFO_FILE -> MsgNodeInfo). Dashboards zeigen daraus z.B. den
+    # Standorttext. node_info_extra: weitere Schluessel als JSON-Objekt.
+    node_location: str = ""       # -> "nodeLocation"
+    sysop: str = ""               # -> "sysop"
+    node_info_extra: str = ""
+
+    def node_info(self) -> dict:
+        """Inhalt der node_info.json. Leer = keine Datei."""
+        import json
+        info = {}
+        if self.node_info_extra.strip():
+            info.update(json.loads(self.node_info_extra))
+        if self.node_location:
+            info["nodeLocation"] = self.node_location
+        if self.sysop:
+            info["sysop"] = self.sysop
+        return info
+
     def pty_path(self) -> str:
         return self.dtmf_pty or f"/data/pty/{self.name}"
 
     def validate(self) -> None:
         if not self.name:
             raise ConfigError("Reflektor ohne Namen")
+        if self.node_info_extra.strip():
+            import json
+            try:
+                extra = json.loads(self.node_info_extra)
+            except ValueError as exc:
+                raise ConfigError(f"Reflektor {self.name}: node_info_extra "
+                                  f"ist kein gueltiges JSON ({exc})")
+            if not isinstance(extra, dict):
+                raise ConfigError(f"Reflektor {self.name}: node_info_extra "
+                                  "muss ein JSON-Objekt {...} sein")
         if self.usrp_port and self.usrp_port == self.usrp_listen_port:
             raise ConfigError(
                 f"Reflektor {self.name}: usrp_port und usrp_listen_port "

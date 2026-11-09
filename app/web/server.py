@@ -537,6 +537,43 @@ async def api_tetra_fw(request: web.Request):
 
 
 @needs("system")
+async def api_nodeinfo(request: web.Request):
+    """Node-Info des aktiven Reflektors (NODE_INFO_FILE in svxlink).
+
+    svxlink schickt sie nur beim Anmelden - Uebernehmen startet die
+    Instanz darum neu.
+    """
+    cfg: cfgmod.Config = request.app["cfg"]
+    reflektor = cfg.active_reflector()
+    if reflektor is None:
+        raise web.HTTPConflict(text="Kein aktiver Reflektor")
+    if request.method == "GET":
+        return web.json_response({
+            "reflector": reflektor.name,
+            "callsign": reflektor.callsign,
+            "node_location": reflektor.node_location,
+            "sysop": reflektor.sysop,
+            "node_info_extra": reflektor.node_info_extra,
+        })
+    data = await request.json()
+    raw = cfg.to_dict()
+    for eintrag in raw["reflectors"]:
+        if eintrag["name"] != reflektor.name:
+            continue
+        for key in ("node_location", "sysop", "node_info_extra"):
+            if key in data:
+                eintrag[key] = str(data[key] or "").strip()
+    antwort = await _apply(request, raw, "Node-Info")
+    daten = json.loads(antwort.body)
+    neu = await _restart_svxlink(request)
+    if neu:
+        daten["hinweis"] = ("Node-Info gespeichert. svxlink neu gestartet "
+                            "(" + ", ".join(neu) + "), damit der Reflektor "
+                            "sie bekommt.")
+    return web.json_response(daten)
+
+
+@needs("system")
 async def api_audio(request: web.Request):
     """Audiopegel in dB. Global, nicht je Reflektor."""
     cfg: cfgmod.Config = request.app["cfg"]
@@ -602,7 +639,7 @@ async def _restart_svxlink(request: web.Request) -> list[str]:
         except Exception as exc:            # pragma: no cover - defensiv
             log.warning("Neustart von %s fehlgeschlagen: %s", name, exc)
     if namen:
-        log.info("svxlink neu gestartet wegen geaenderter Pegel: %s",
+        log.info("svxlink neu gestartet: %s",
                  ", ".join(namen))
     return namen
 
@@ -828,6 +865,8 @@ def build_app(cfg, state, router, client, *, config_path: str,
     app.router.add_get("/api/tetra", api_tetra)
     app.router.add_post("/api/tetra", api_tetra)
     app.router.add_get("/api/tetra_fw", api_tetra_fw)
+    app.router.add_get("/api/nodeinfo", api_nodeinfo)
+    app.router.add_post("/api/nodeinfo", api_nodeinfo)
     app.router.add_post("/api/tetra_fw", api_tetra_fw)
     app.router.add_get("/api/audio", api_audio)
     app.router.add_post("/api/audio", api_audio)

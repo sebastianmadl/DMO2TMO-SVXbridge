@@ -18,6 +18,14 @@ Chronologie der Arbeiten. Neueste oben.
 - Protokoll-Doku korrigiert: bei POS/GPS steht die Laenge vor der Breite.
 - Tests: selftest (Zeilenformat, Pruefung, UDP-Empfaenger), smoketest
   (ganzer Ruf -> VOICE-Zeile), webtest (API).
+- **Live bestaetigt (12:51):** VOICE-Zeile erscheint im OE-MASTER-Lastheard
+  (OE4SXM, #232, 2320997).
+- Node-Info fuer den oberen Dashboard-Teil: Reflektor-Felder
+  `node_location` (-> `nodeLocation`), `sysop`, `node_info_extra` (JSON);
+  confgen schreibt `node_info.json` + `NODE_INFO_FILE`. WebUI System ->
+  „Node-Info am Reflektor“, `/api/nodeinfo`, startet svxlink neu.
+  Ob das OE-Dashboard die Spalte „Comment“ wirklich aus `nodeLocation`
+  liest, ist noch zu pruefen.
 - **Offen, nur live pruefbar:** ob der Server dedupliziert, ob VOICE zu
   Sprechbeginn das ist, was das Dashboard erwartet.
 

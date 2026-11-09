@@ -182,6 +182,13 @@ t = get(op, "/api/tetra")
 check("ISSI- und SDS-Schalter gelistet",
       "issi_passthrough" in t and "sds_forward" in t, str(t))
 
+print("Node-Info:")
+ni = get(op, "/api/nodeinfo")
+check("Felder da", all(k in ni for k in ("callsign", "node_location", "sysop",
+                                         "node_info_extra")), str(ni))
+check("kaputtes JSON abgelehnt", code_of(lambda: post(
+    op, "/api/nodeinfo", {"node_info_extra": "{x"})) == 400)
+
 print("Lastheard (tetra_fw):")
 fw = get(op, "/api/tetra_fw")
 check("alle Felder und Status", all(k in fw for k in (

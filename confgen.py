@@ -20,6 +20,7 @@ svxlink-usrp. Zwei Fallen, die dort auffielen:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -75,8 +76,12 @@ def default_tg(cfg: cfgmod.Config, reflector: cfgmod.Reflector,
     return 0
 
 
+def node_info_path(outdir: Path, name: str) -> Path:
+    return outdir / name / "node_info.json"
+
+
 def render(cfg: cfgmod.Config, reflector: cfgmod.Reflector,
-           dynamic_tg: int = 0) -> str:
+           dynamic_tg: int = 0, node_info_file: str = "") -> str:
     missing = reflector.ready_for_svxlink()
     if missing:
         raise cfgmod.ConfigError(
@@ -172,7 +177,9 @@ AUDIO_CODEC=OPUS
 JITTER_BUFFER_DELAY=0
 EVENT_HANDLER={EVENT_HANDLER}
 DEFAULT_LANG=de_DE
-"""
+""" + (f"""# Node-Info (Standort, Sysop, ...) - geht beim Anmelden an den Reflektor
+NODE_INFO_FILE={node_info_file}
+""" if node_info_file else "")
 
 
 def write_all(cfg: cfgmod.Config, outdir: Path,
@@ -191,8 +198,17 @@ def write_all(cfg: cfgmod.Config, outdir: Path,
         if dtmf_noetig(reflector):
             # svxlink legt nur den Symlink an, nicht das Verzeichnis darueber.
             Path(reflector.pty_path()).parent.mkdir(parents=True, exist_ok=True)
+        info = reflector.node_info()
+        info_path = node_info_path(outdir, reflector.name)
+        if info:
+            info_path.write_text(
+                json.dumps(info, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8")
+        elif info_path.exists():
+            info_path.unlink()
         path.write_text(
-            render(cfg, reflector, dynamic_tgs.get(reflector.name, 0)),
+            render(cfg, reflector, dynamic_tgs.get(reflector.name, 0),
+                   str(info_path.resolve()) if info else ""),
             encoding="utf-8",
         )
         written.append(path)

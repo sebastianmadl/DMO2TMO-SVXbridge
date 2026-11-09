@@ -77,6 +77,10 @@ reflectors:
     usrp_listen_port: 41244
     default_tg: 2321
     enabled: true
+    # Node-Info fuers Reflektor-Dashboard (NODE_INFO_FILE), alles optional
+    node_location: ""              # Standorttext, z.B. "Tetra-OE4SXM/430.0000"
+    sysop: ""
+    node_info_extra: ""            # weitere Schluessel als JSON-Objekt
 
 routes:
   # Genau eine feste Sprechgruppe: GSSI auf TETRA-Seite <-> TG am Reflektor.

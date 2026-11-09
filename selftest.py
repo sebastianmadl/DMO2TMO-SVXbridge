@@ -948,6 +948,43 @@ def test_web():
     check("since liefert nur Neues", buf.since(buf.last_seq) == [])
 
 
+def test_nodeinfo():
+    print("Node-Info (NODE_INFO_FILE):")
+    import json
+    import tempfile
+    from pathlib import Path
+    import confgen
+    raw = _example_raw()
+    cfg = cfgmod.from_dict(raw)
+    with tempfile.TemporaryDirectory() as tmp:
+        confgen.write_all(cfg, Path(tmp))
+        conf = (Path(tmp) / "R1" / "svxlink.conf").read_text()
+        check("ohne Angaben kein NODE_INFO_FILE", "NODE_INFO_FILE" not in conf)
+        check("und keine Datei",
+              not (Path(tmp) / "R1" / "node_info.json").exists())
+        r = dict(raw["reflectors"][0], node_location="Tetra-OE4SXM/430.0000",
+                 sysop="OE4SXM", node_info_extra='{"locator": "JN87"}')
+        cfg = cfgmod.from_dict({**raw, "reflectors": [r]})
+        confgen.write_all(cfg, Path(tmp))
+        conf = (Path(tmp) / "R1" / "svxlink.conf").read_text()
+        datei = Path(tmp) / "R1" / "node_info.json"
+        check("NODE_INFO_FILE in ReflectorLogic",
+              f"NODE_INFO_FILE={datei.resolve()}" in conf
+              and conf.index("NODE_INFO_FILE") > conf.index("[ReflectorLogic]"))
+        info = json.loads(datei.read_text())
+        check("Inhalt der node_info.json",
+              info == {"locator": "JN87", "nodeLocation":
+                       "Tetra-OE4SXM/430.0000", "sysop": "OE4SXM"}, str(info))
+        r["node_location"] = r["sysop"] = r["node_info_extra"] = ""
+        confgen.write_all(cfgmod.from_dict({**raw, "reflectors": [r]}),
+                          Path(tmp))
+        check("geleert -> Datei weg", not datei.exists())
+    for name, extra in (("kaputtes JSON", "{locator"), ("Liste", "[1]")):
+        r = dict(raw["reflectors"][0], node_info_extra=extra)
+        _abgelehnt(f"node_info_extra: {name} wird abgelehnt",
+                   {**raw, "reflectors": [r]})
+
+
 def test_tetra_fw():
     print("Lastheard TETRA-AUSTRIA (tetra_fw):")
     import asyncio
@@ -1031,7 +1068,7 @@ def main() -> int:
         test_usrp, test_confgen, test_gain, test_web,
         test_schedule_grace, test_schedule_hard, test_schedule_cap,
         test_schedule_overnight, test_config, test_router_tetra,
-        test_tetra_fw,
+        test_tetra_fw, test_nodeinfo,
     ):
         test()
         print()

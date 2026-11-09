@@ -191,6 +191,26 @@
     <div id="tetra-out"></div>
   </div>
 
+  <h2>Node-Info am Reflektor</h2>
+  <div class="card">
+    <div class="form">
+      <label><span>Gateway (Node-Rufzeichen)</span>
+        <input id="ni-call" disabled></label>
+      <label><span>Comment / Standort (nodeLocation)</span>
+        <input id="ni-location" placeholder="Tetra-OE4SXM/430.0000" autocomplete="off"></label>
+      <label><span>Sysop</span>
+        <input id="ni-sysop" placeholder="OE4SXM" autocomplete="off"></label>
+      <label><span>Weitere Felder (JSON, optional)</span>
+        <textarea id="ni-extra" rows="3" placeholder='{"locator": "JN87"}'></textarea></label>
+      <button class="btn primary" id="ni-save">Übernehmen</button>
+    </div>
+    <p class="hint">Das schickt svxlink beim Anmelden als Node-Info an den
+      Reflektor (<code>NODE_INFO_FILE</code>); Dashboards zeigen daraus den
+      Standorttext. Das Node-Rufzeichen selbst ist der Login am Reflektor und
+      steht in der Reflektor-Konfiguration. Übernehmen startet svxlink neu.</p>
+    <div id="ni-out"></div>
+  </div>
+
   <h2>Lastheard (TETRA-AUSTRIA)</h2>
   <div class="card">
     <div class="form">
