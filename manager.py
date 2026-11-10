@@ -54,6 +54,16 @@ class Child:
         self.process: asyncio.subprocess.Process | None = None
         self.restarts = 0
         self._stop = False
+        self.task: asyncio.Task | None = None
+
+    def start(self, stop: asyncio.Event) -> bool:
+        """Aufsicht (wieder) anwerfen. Nach einem Stop ist die run()-Schleife
+        zu Ende - `_stop` zuruecksetzen allein startet nichts mehr."""
+        if self.task is not None and not self.task.done():
+            return False
+        self._stop = False
+        self.task = asyncio.create_task(self.run(stop), name=self.name)
+        return True
 
     async def _tee(self) -> None:
         """Ausgabe in die Datei *und* nach stdout, damit beides da ist."""
@@ -225,13 +235,14 @@ async def _bridge(children: list[Child], confdir: Path,
                         log.warning("Kommando fuer unbekannten Dienst %r", name)
                     elif action == "restart":
                         log.info("WebUI: Neustart %s", name)
-                        await child.restart()
+                        if not child.start(stop):
+                            await child.restart()
                     elif action == "stop":
                         log.info("WebUI: Stop %s", name)
                         await child.terminate()
                     elif action == "start":
-                        if child.process is None:
-                            child._stop = False
+                        if child.start(stop):
+                            log.info("WebUI: Start %s", name)
         except OSError as exc:
             log.debug("Kommandodatei nicht lesbar: %s", exc)
 
@@ -273,17 +284,18 @@ async def amain(config_path: str, confdir: Path) -> int:
         except NotImplementedError:      # Windows
             pass
 
-    tasks = [asyncio.create_task(child.run(stop), name=child.name)
-             for child in children]
-    tasks.append(asyncio.create_task(_bridge(children, confdir, stop),
-                                     name="bruecke-ipc"))
+    for child in children:
+        child.start(stop)
+    bruecke = asyncio.create_task(_bridge(children, confdir, stop),
+                                  name="bruecke-ipc")
     log.info("%d Prozess(e) unter Aufsicht", len(children))
 
     await stop.wait()
     log.info("Beende alle Kinder ...")
     await asyncio.gather(*(child.terminate() for child in children),
                          return_exceptions=True)
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(bruecke, *(c.task for c in children if c.task),
+                         return_exceptions=True)
     return 0
 
 
