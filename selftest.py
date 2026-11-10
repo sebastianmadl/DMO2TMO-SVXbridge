@@ -503,6 +503,23 @@ def test_dashboard():
     check("Durchgang vor dem Rufaufbau zu Ende: weder TX noch IDLE",
           log_ == [] and not router.floors, repr(log_))
 
+    # Live 2026-11-10: nach einem eigenen TETRA-Durchgang hingen die
+    # Metadaten mit dem eigenen Node-Rufzeichen; das Dashboard lieferte dazu
+    # unsere eigene Lastheard-Zeile und der naechste Sprecher ging mit der
+    # ISSI unseres letzten Sprechers hinaus.
+    log_.clear()
+    gefragt = []
+    async def merken(url, gateway, max_age):
+        gefragt.append(gateway)
+        return od.Eintrag(gateway, "OE4SXM", 2320972, time.time(), "")
+    router.dashboard.issi_fuer = merken
+    eigen = cfg.reflector("R1").callsign
+    asyncio.run(router.on_svx_start("R1", eigen.lower(), 2321))
+    asyncio.run(router.on_svx_stop("R1"))
+    check("eigenes Node-Rufzeichen: kein Nachschlagen, Bruecken-ISSI",
+          gefragt == [] and log_ and log_[0] == ("tx", None, ""),
+          repr((gefragt, log_)))
+
 
 def test_usrp():
     print("USRP-Pakete (gegen die Mitschnitte in usrp_protocol.txt):")

@@ -4,6 +4,38 @@ Chronologie der Arbeiten. Neueste oben.
 
 ---
 
+## 2026-11-10 — falscher Sprecher nach eigenem Durchgang
+
+Sebastian: "manchmal kommts am brew server an, manchmal nicht". Im Log
+vom VPS (16:55-17:01) hat jeder Durchgang mit `TX ...`-Zeile den
+GROUP_TX tatsaechlich geschickt. Gefunden dabei ein echter Fehler:
+
+```
+ReflectorLogic: Talker start on TG #232: OE6XAG-R
+Dashboard: OE4SXM-R spricht als OE4SXM / ISSI 2320972
+TX TetraDMO-OE/TG 232 -> GSSI 232 (OE4SXM) von ISSI 2320972
+```
+
+OE6XAG-R ging mit unserem eigenen letzten Sprecher hinaus. Ursache im
+svxlink-Patch: `Reflector:talker_start` setzt `m_remote_call` nur, wenn
+noch keiner gesetzt ist, und geloescht wird es nur in `sendStopMsg` -
+also nur nach Durchgaengen, die UsrpLogic auch ausgespielt hat. Spricht
+unser eigener Node (`OE4SXM-R`), wird nichts ausgespielt, der Eintrag
+bleibt bis zum naechsten fremden Durchgang stehen. Das Dashboard hatte
+dazu unsere eigene Lastheard-Zeile.
+
+- `svxlink/patches/03-talker-stop.patch`: `Reflector:talker_stop` wird
+  gemeldet und raeumt die Sprecherdaten; `talker_start` ueberschreibt,
+  ausser ein `Qso:info` hat fuer diesen Durchgang schon eine ISSI geliefert.
+  **Nicht kompiliert** (keine Header hier), nur `git apply` auf den
+  festgenagelten Staenden geprueft - der Docker-Build am VPS ist der Test.
+- Bruecke: nennen die Metadaten das eigene Node-Rufzeichen (Reflektor-
+  Callsign oder Lastheard-Gateway-Call), wird nichts nachgeschlagen und
+  ohne Rufzeichen/fremde ISSI gesendet. Greift auch ohne neues svxlink.
+- Node-Info-Maske: Empfaenger A mit Antenne, optionaler Empfaenger B -
+  passend zur Vorlage `node_info.json` aus svxlink, die Sebastian von
+  OE1KBC bekommen hat. Rundlauf geprueft: zweite Antennen bleiben im JSON.
+
 ## 2026-11-09 (Nachmittag) — tetra_fw-Lastheard-Sender
 
 - `app/tetra_fw.py`: VOICE-Zeile bei jedem GROUP_TX von TETRA an

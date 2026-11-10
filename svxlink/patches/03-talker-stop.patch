@@ -1,0 +1,58 @@
+diff --git a/src/svxlink/svxlink/ReflectorV2Logic.cpp b/src/svxlink/svxlink/ReflectorV2Logic.cpp
+index b90f9365..b8175e7d 100644
+--- a/src/svxlink/svxlink/ReflectorV2Logic.cpp
++++ b/src/svxlink/svxlink/ReflectorV2Logic.cpp
+@@ -1279,6 +1279,11 @@ void ReflectorLogic::handleMsgTalkerStop(std::istream& is)
+   ss << "talker_stop " << msg.tg() << " "
+      << EventHandler::tclSafeCallsign(msg.callsign());
+   processEvent(ss.str());
++
++  Json::Value event(Json::objectValue);
++  event["tg"] = msg.tg();
++  event["callsign"] = msg.callsign();
++  publishStateEvent("Reflector:talker_stop", jsonToString(event));
+ } /* ReflectorLogic::handleMsgTalkerStop */
+ 
+ 
+diff --git a/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.cpp b/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.cpp
+index 55c896b3..060b3527 100644
+--- a/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.cpp
++++ b/src/svxlink/svxlink/contrib/UsrpLogic/UsrpLogic.cpp
+@@ -1419,7 +1419,8 @@ void UsrpLogic::remoteReceivedPublishStateEvent(LogicBase *src_logic,
+     const std::string& event_name, const std::string& msg)
+ {
+   if (event_name != "Qso:info" && event_name != "ForwardSds:info" &&
+-      event_name != "Reflector:talker_start")
++      event_name != "Reflector:talker_start" &&
++      event_name != "Reflector:talker_stop")
+   {
+     return;
+   }
+@@ -1441,11 +1442,25 @@ void UsrpLogic::remoteReceivedPublishStateEvent(LogicBase *src_logic,
+ 
+   if (event_name == "Reflector:talker_start")
+   {
+-    if (!m_remote_active || m_remote_call.empty())
++      // A Qso:info for this over names the TETRA subscriber - that beats
++      // the node callsign. Anything else is replaced: the remote data of
++      // an over that never reached us (e.g. our own node talking) must
++      // not stick to the next one.
++    if (m_remote_issi == 0 || m_remote_call.empty())
+     {
+       m_remote_call = v.get("callsign", "").asString();
+-      m_remote_active = true;
+     }
++    m_remote_active = true;
++    if (ident) sendMetaMsg();
++  }
++  else if (event_name == "Reflector:talker_stop")
++  {
++      // Our own sendStopMsg clears this too, but only for overs we played
++      // out. When our own node was the talker nothing was played, and the
++      // data would otherwise carry over to the next talker.
++    m_remote_active = false;
++    m_remote_issi = 0;
++    m_remote_call = "";
+   }
+   else if (event_name == "Qso:info")
+   {

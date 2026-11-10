@@ -53,6 +53,11 @@ also keine Kollision bei Node-Rufzeichen.
   schickt `ForwardSds:info` an das Gateway aus der Nachricht, also zurueck
   zum Absender. Jetzt an das Gateway, bei dem der Empfaenger registriert
   ist.
+- `03-talker-stop.patch` — ReflectorV2Logic meldet auch
+  `Reflector:talker_stop`, UsrpLogic raeumt damit die Sprecherdaten weg.
+  Vorher blieb nach einem **eigenen** TETRA-Durchgang `OE4SXM-R` als
+  Sprecher haengen (wir hoeren uns nicht selbst, also kein `sendStopMsg`),
+  und der naechste fremde Durchgang ging mit diesen Metadaten hinaus.
 
 **Gegen echtes svxlink getestet** (lokal gebaut, svxreflector + zwei
 Knoten mit UsrpLogic, Python als USRP-Gegenstelle): `Qso:info` mit

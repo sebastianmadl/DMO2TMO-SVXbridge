@@ -391,6 +391,13 @@ class Router(BrewHandler):
 
     # ----------------------------------------------------------- Floor-Lock
 
+    def _eigenes_rufzeichen(self, reflector_name: str, callsign: str) -> bool:
+        cs = callsign.strip().upper()
+        reflektor = self.cfg.reflector(reflector_name)
+        eigene = {reflektor.callsign if reflektor else "",
+                  self.tetra_fw.gateway_call()}
+        return any(cs == e.strip().upper() for e in eigene if e and e.strip())
+
     def _claim_floor(self, route: cfgmod.Route, identifier: _uuid.UUID) -> bool:
         key = route.reflector or "_"
         current = self.floors.get(key)
@@ -725,6 +732,18 @@ class Router(BrewHandler):
             self.dynamic_last_used[route.gssi] = time.time()
 
         fw = self.cfg.tetra_fw
+        if callsign and self._eigenes_rufzeichen(reflector_name, callsign):
+            # Unser eigener Node als Sprecher kann es nicht sein - wir hoeren
+            # uns ueber den Reflektor nicht selbst. Das sind Metadaten, die
+            # von unserem letzten TETRA-Durchgang haengen geblieben sind.
+            # Im Dashboard stuende dazu unsere eigene Lastheard-Zeile, und
+            # der Durchgang ginge mit der ISSI unseres letzten Sprechers
+            # hinaus.
+            log.info("SVX %s: Metadaten nennen den eigenen Node %s - "
+                     "Sprecher unbekannt", reflector_name, callsign)
+            callsign = ""
+            call.callsign = ""
+            quelle = None
         if quelle is None and fw.dashboard_issi and callsign:
             # Audio, das waehrend des Nachschlagens kommt, puffert
             # on_svx_frame - der GROUP_TX geht erst danach hinaus, weil sich

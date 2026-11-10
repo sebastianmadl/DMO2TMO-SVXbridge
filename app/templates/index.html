@@ -254,6 +254,28 @@
             <option value="EVDEV">EVDEV</option><option value="GPIO">GPIO</option>
           </select></label>
         <label><span>CTCSS (Hz, mehrere mit Komma)</span><input data-ni="qth.0.rx.A.ctcssFreq" data-ni-type="numlist" inputmode="decimal"></label>
+        <label><span>Antenne</span><input data-ni="qth.0.rx.A.ant.0.comment" placeholder="Diamond X30"></label>
+        <label><span>Antennenhöhe (m)</span><input data-ni="qth.0.rx.A.ant.0.height" data-ni-type="num" inputmode="decimal"></label>
+        <label><span>Richtung (°, leer = rund)</span><input data-ni="qth.0.rx.A.ant.0.dir" data-ni-type="num" inputmode="decimal"></label>
+      </div>
+    </details>
+
+    <details class="ni-group">
+      <summary>Zweiter Empfänger (qth → rx B, optional)</summary>
+      <div class="form">
+        <label><span>Name</span><input data-ni="qth.0.rx.B.name" placeholder="Rx2"></label>
+        <label><span>Frequenz (MHz)</span><input data-ni="qth.0.rx.B.freq" data-ni-type="num" inputmode="decimal" placeholder="430.0000"></label>
+        <label><span>Squelch-Art</span>
+          <select data-ni="qth.0.rx.B.sqlType">
+            <option value="">–</option>
+            <option value="CTCSS">CTCSS</option><option value="COS">COS</option>
+            <option value="VOX">VOX</option><option value="SERIAL">SERIAL</option>
+            <option value="EVDEV">EVDEV</option><option value="GPIO">GPIO</option>
+          </select></label>
+        <label><span>CTCSS (Hz, mehrere mit Komma)</span><input data-ni="qth.0.rx.B.ctcssFreq" data-ni-type="numlist" inputmode="decimal"></label>
+        <label><span>Antenne</span><input data-ni="qth.0.rx.B.ant.0.comment" placeholder="Diamond X30"></label>
+        <label><span>Antennenhöhe (m)</span><input data-ni="qth.0.rx.B.ant.0.height" data-ni-type="num" inputmode="decimal"></label>
+        <label><span>Richtung (°, leer = rund)</span><input data-ni="qth.0.rx.B.ant.0.dir" data-ni-type="num" inputmode="decimal"></label>
       </div>
     </details>
 
