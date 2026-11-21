@@ -79,7 +79,7 @@ When the bridge sends what:
 
 Nothing new is sent. Only with `map.lip_fallback` (default off) a user's
 position goes out as a LIP short location report SDS (PID 0x0A), source = user
-ISSI, destination = gateway ISSI; every brew-server decodes those and shows
+ISSI, destination = `map.lip_destination` (0 = the gateway ISSI); every brew-server decodes those and shows
 the user as a normal radio. The field layout follows brew-server
 `position::decode_lip`; the code values for time elapsed, position error and
 reason for sending are not checked against the TS 100 392-18 text.

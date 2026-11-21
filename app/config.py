@@ -409,6 +409,7 @@ class MapConfig:
     max_age_hours: int = 24         # aeltere Zeilen nicht melden, 0 = alle
     auto_gateways: bool = True      # Gateways mit POS-Bake ohne Eintrag
     lip_fallback: bool = False      # ohne Erweiterung als LIP-SDS
+    lip_destination: int = 0        # Ziel-ISSI der LIP-SDS, 0 = Gateway-ISSI
     gateways: list[MapGateway] = field(default_factory=list)
 
     def gateway(self, call: str) -> Optional[MapGateway]:
@@ -425,6 +426,8 @@ class MapConfig:
             raise ConfigError("map.user_min_interval: 0 bis 3600")
         if not 0 <= int(self.max_age_hours) <= 24 * 30:
             raise ConfigError("map.max_age_hours: 0 bis 720")
+        if not 0 <= int(self.lip_destination) <= MAX_ISSI:
+            raise ConfigError(f"map.lip_destination: 0 bis {MAX_ISSI}")
         calls, issis = set(), set()
         for gw in self.gateways:
             gw.validate()

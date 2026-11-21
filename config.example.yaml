@@ -60,6 +60,7 @@ map:
   max_age_hours: 24                # aeltere Zeilen nicht melden, 0 = alle
   auto_gateways: true              # Gateways mit POS-Bake auch ohne Eintrag
   lip_fallback: false              # ohne Erweiterung als LIP-SDS senden
+  lip_destination: 0               # Ziel-ISSI der LIP-SDS, 0 = Gateway-ISSI
   gateways: []
   #  - call: "OE1XCS-T"            # wie am Dashboard
   #    issi: 0                     # 0 = ID aus der POS-Bake

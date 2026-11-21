@@ -903,6 +903,7 @@ async function loadMap(force) {
     $("map-enabled").checked = !!d.enabled;
     $("map-auto").checked = !!d.auto_gateways;
     $("map-lip").checked = !!d.lip_fallback;
+    $("map-lip-dest").value = d.lip_destination || "";
     $("map-poll").value = d.poll_seconds;
     $("map-interval").value = d.user_min_interval;
     $("map-age").value = d.max_age_hours;
@@ -927,6 +928,7 @@ $("map-save")?.addEventListener("click", async () => {
       enabled: $("map-enabled").checked,
       auto_gateways: $("map-auto").checked,
       lip_fallback: $("map-lip").checked,
+      lip_destination: $("map-lip-dest").value,
       poll_seconds: Number($("map-poll").value),
       user_min_interval: Number($("map-interval").value),
       max_age_hours: Number($("map-age").value),

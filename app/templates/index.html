@@ -359,6 +359,8 @@
         <input id="map-age" type="number" min="0" max="720"></label>
       <label class="switch"><span>Ohne Erweiterung als LIP-SDS senden</span>
         <input type="checkbox" id="map-lip"></label>
+      <label><span>Ziel-ISSI der LIP-SDS (leer = Gateway-ISSI)</span>
+        <input id="map-lip-dest" inputmode="numeric" autocomplete="off"></label>
 
       <div class="label" style="margin-top:10px">DMO-Gateways</div>
       <div id="map-gws"></div>
@@ -376,7 +378,8 @@
     <p class="hint">Bietet der brew-server die Erweiterung nicht an (TetraPack,
       BrandMeister, ältere Versionen), geht nichts davon hinaus. Nur mit
       <b>LIP-SDS</b> geht die Position dann als normale LIP-Meldung mit der
-      ISSI des Teilnehmers als Absender – ohne Gateway und ohne DMO-Symbol.</p>
+      ISSI des Teilnehmers als Absender an die Ziel-ISSI (leer = ISSI des
+      Gateways) – ohne Gateway und ohne DMO-Symbol.</p>
     <p class="hint">Je Gateway: <b>Call</b> wie am Dashboard (z.B.
       <code>OE1XCS-T</code>), <b>ISSI</b> für die Karte (leer = ID aus der
       POS-Bake), Name und Standort in Dezimalgrad (leer = aus der POS-Bake).

@@ -414,7 +414,8 @@ class DmoPositions:
             self.sent_users += 1
         elif mode == "lip":
             age = max(0.0, now - e.zeit) if e.zeit else 1e9
-            self.client.send_sds(gw.issi, lip_short_report(e.lat, e.lon, age),
+            ziel = cfg.map.lip_destination or gw.issi
+            self.client.send_sds(ziel, lip_short_report(e.lat, e.lon, age),
                                  source=e.issi)
             self.sent_lip += 1
 

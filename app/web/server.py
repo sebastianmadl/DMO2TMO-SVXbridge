@@ -579,7 +579,8 @@ async def api_map(request: web.Request):
     for key in ("enabled", "auto_gateways", "lip_fallback"):
         if key in data:
             m[key] = bool(data[key])
-    for key in ("poll_seconds", "user_min_interval", "max_age_hours"):
+    for key in ("poll_seconds", "user_min_interval", "max_age_hours",
+                "lip_destination"):
         if key in data:
             m[key] = _int(data[key], key, m.get(key, 0))
     if "gateways" in data:

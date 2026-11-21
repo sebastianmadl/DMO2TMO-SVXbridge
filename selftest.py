@@ -1401,6 +1401,15 @@ def test_dmo_positions():
     check("LIP-SDS mit Teilnehmer als Absender",
           len(fc4.sds) == 1 and fc4.sds[0][2] == 2321109 and fc4.sds[0][0] == 9100001
           and abs(_decode_lip(fc4.sds[0][1])[2] - 48.148) < 1e-4, str(fc4.sds))
+    cfg = cfgmod.from_dict({**raw, "map": {"enabled": True, "lip_fallback": True,
+        "lip_destination": 9999, "gateways": [{"call": "OE1XCS-T", "issi": 9100001}]}})
+    fc5 = FakeClient(set())
+    dmo.on_connected(fc5)
+    dmo.process(seite, "lip", now=jetzt)
+    check("LIP an die eingestellte Ziel-ISSI",
+          len(fc5.sds) == 1 and fc5.sds[0][0] == 9999, str(fc5.sds))
+    _abgelehnt("lip_destination ueber 24 Bit",
+               {**raw, "map": {"lip_destination": 1 << 24}})
 
 def main() -> int:
     for test in (
