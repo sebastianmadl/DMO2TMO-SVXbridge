@@ -357,7 +357,8 @@ class DmoPositions:
                                 source=source)
         for call, why in unresolved.items():
             if self.unresolved.get(call) != why:
-                log.info("DMO gateway %s not on the map: %s", call, why)
+                log.info("DMO gateway %s not on the map: %s", call,
+                         _WHY.get(why.split(":")[0], why))
         self.unresolved = unresolved
         return out
 
@@ -442,6 +443,16 @@ class DmoPositions:
             "unresolved": [{"call": c, "why": w}
                            for c, w in sorted(self.unresolved.items())],
         }
+
+
+_WHY = {
+    "unknown": "heard with users, but no POS beacon seen yet and no entry "
+               "in the map settings (users via it are not sent)",
+    "no_issi": "no ISSI (no POS beacon seen yet)",
+    "no_position": "no position (no POS beacon seen yet)",
+    "own_issi": "its ISSI is the bridge's own Brew ISSI",
+    "dup_issi": "its ISSI is already used by another gateway",
+}
 
 
 def _same(a: str, b: str) -> bool:
