@@ -354,6 +354,93 @@ class TetraFwConfig:
             raise ConfigError("tetra_fw.dashboard_max_age: 1 bis 3600 s")
 
 
+MAX_ISSI = 0xFFFFFF
+
+
+@dataclass
+class MapGateway:
+    """Ein DMO-Gateway fuer die Karte des brew-servers.
+
+    call: Gateway-Spalte am Dashboard bzw. Node-Rufzeichen am Reflektor
+        (z.B. OE1XCS-T). Darueber werden die Zeilen zugeordnet.
+    issi: Gateway-ISSI auf der Karte. 0 = die ID aus der POS-Bake des
+        Gateways am Dashboard.
+    name: Anzeigename. Leer = Comment aus dem Dashboard, sonst der Call.
+    lat/lon: Standort in Dezimalgrad. Leer = Position aus der POS-Bake.
+    """
+    call: str = ""
+    issi: int = 0
+    name: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+
+    def validate(self) -> None:
+        if not self.call.strip():
+            raise ConfigError("map.gateways: Gateway-Call fehlt")
+        if not 0 <= int(self.issi) <= MAX_ISSI:
+            raise ConfigError(f"map.gateways {self.call}: ISSI 0 bis "
+                              f"{MAX_ISSI}")
+        if (self.lat is None) != (self.lon is None):
+            raise ConfigError(f"map.gateways {self.call}: Breite und Laenge "
+                              "nur gemeinsam")
+        if self.lat is not None:
+            if not -90 <= float(self.lat) <= 90:
+                raise ConfigError(f"map.gateways {self.call}: Breite -90 bis 90")
+            if not -180 <= float(self.lon) <= 180:
+                raise ConfigError(f"map.gateways {self.call}: Laenge -180 "
+                                  "bis 180")
+            if float(self.lat) == 0 and float(self.lon) == 0:
+                raise ConfigError(f"map.gateways {self.call}: 0/0 ist keine "
+                                  "Position")
+
+
+@dataclass
+class MapConfig:
+    """DMO-Positionen an die Karte des brew-servers (app/dmo_positions.py).
+
+    Geht nur hinaus, wenn der brew-server die Brew-Erweiterung
+    `dmo-position` anbietet (X-Brew-Extensions). Quelle ist das Lastheard
+    des OE-Dashboards (tetra_fw.dashboard_url): GPS-Zeilen sind
+    Teilnehmer-Positionen, POS-Zeilen die Baken der Gateways.
+    """
+    enabled: bool = False
+    poll_seconds: int = 30          # Dashboard so oft lesen
+    user_min_interval: int = 30     # hoechstens eine Position je ISSI so oft
+    max_age_hours: int = 24         # aeltere Zeilen nicht melden, 0 = alle
+    auto_gateways: bool = True      # Gateways mit POS-Bake ohne Eintrag
+    lip_fallback: bool = False      # ohne Erweiterung als LIP-SDS
+    gateways: list[MapGateway] = field(default_factory=list)
+
+    def gateway(self, call: str) -> Optional[MapGateway]:
+        call = (call or "").strip().upper()
+        for gw in self.gateways:
+            if gw.call.strip().upper() == call:
+                return gw
+        return None
+
+    def validate(self, own_issi: int = 0) -> None:
+        if not 10 <= int(self.poll_seconds) <= 3600:
+            raise ConfigError("map.poll_seconds: 10 bis 3600")
+        if not 0 <= int(self.user_min_interval) <= 3600:
+            raise ConfigError("map.user_min_interval: 0 bis 3600")
+        if not 0 <= int(self.max_age_hours) <= 24 * 30:
+            raise ConfigError("map.max_age_hours: 0 bis 720")
+        calls, issis = set(), set()
+        for gw in self.gateways:
+            gw.validate()
+            key = gw.call.strip().upper()
+            if key in calls:
+                raise ConfigError(f"map.gateways: {gw.call} doppelt")
+            calls.add(key)
+            if gw.issi:
+                if gw.issi in issis:
+                    raise ConfigError(f"map.gateways: ISSI {gw.issi} doppelt")
+                if own_issi and gw.issi == own_issi:
+                    raise ConfigError(f"map.gateways {gw.call}: ISSI "
+                                      f"{gw.issi} ist die eigene Brew-ISSI")
+                issis.add(gw.issi)
+
+
 @dataclass
 class StatusServerConfig:
     enabled: bool = True
@@ -370,6 +457,7 @@ class Config:
     sds_control: SdsControlConfig = field(default_factory=SdsControlConfig)
     tetra: TetraConfig = field(default_factory=TetraConfig)
     tetra_fw: TetraFwConfig = field(default_factory=TetraFwConfig)
+    map: MapConfig = field(default_factory=MapConfig)
     status_server: StatusServerConfig = field(default_factory=StatusServerConfig)
     reflectors: list[Reflector] = field(default_factory=list)
     routes: list[Route] = field(default_factory=list)
@@ -377,6 +465,7 @@ class Config:
     def validate(self) -> None:
         self.audio.validate()
         self.tetra_fw.validate()
+        self.map.validate(self.brew.issi)
         if not self.brew.issi:
             raise ConfigError("brew.issi fehlt")
         if not self.brew.username:
@@ -485,6 +574,11 @@ def from_dict(raw: dict) -> Config:
     )
     cfg.tetra = _build(TetraConfig, raw.get("tetra"), path="tetra")
     cfg.tetra_fw = _build(TetraFwConfig, raw.get("tetra_fw"), path="tetra_fw")
+    map_raw = dict(raw.get("map") or {})
+    gateways = [_build(MapGateway, g, path="map.gateways[]")
+                for g in map_raw.pop("gateways", None) or []]
+    cfg.map = _build(MapConfig, map_raw, path="map")
+    cfg.map.gateways = gateways
 
     audio_raw = raw.get("audio") or {}
     loopback = _build(

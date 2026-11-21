@@ -46,6 +46,17 @@ Position zusaetzlich beim Start eine POS-Bake (6x). Einstellbar unter
 System -> „Lastheard (TETRA-AUSTRIA)“. Protokoll:
 `docs/tetra_fw_protocol.md`.
 
+## DMO-Positionen auf der brew-server-Karte
+
+Mit `map.enabled` liest die Bruecke das Lastheard des OE-Dashboards
+(GPS-Zeilen = Teilnehmer, POS-Zeilen = Baken der Gateways, Knotenliste =
+online) und schickt DMO-Teilnehmer und DMO-Gateways an die Karte des
+brew-servers - als Brew-Erweiterung `dmo-position`, nur wenn der Server sie
+im `X-Brew-Extensions` anbietet. Ohne Erweiterung bleibt alles wie bisher
+(optional als LIP-SDS). Je Gateway lassen sich ISSI, Name und Standort
+festlegen, System -> „Karte (brew-server)“. Format und Ablauf:
+`docs/dmo-position.md`.
+
 ## Schnellstart
 
 ```bash
@@ -298,6 +309,8 @@ app/
   state.py           Last Heard, Zaehler, Subscriber-Cache
   sdsbox.py          SDS-Postfach
   idlist.py          ISSI -> Rufzeichen
+  oe_dashboard.py    OE-Dashboard lesen (Lastheard, Knotenliste)
+  dmo_positions.py   DMO-Positionen an die Karte (dmo-position)
   brew/              Protokoll, WebSocket-Client, Digest, SDS
   audio/             ACELP, USRP-Pakete, Senke/Quelle Richtung svxlink
   web/               WebUI (aiohttp + Jinja), Benutzer, Log-Puffer

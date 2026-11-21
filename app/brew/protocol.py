@@ -97,6 +97,11 @@ ERROR_RESTRICTED = 1
 # 0xF4 - Service messages
 SERVICE_QUERY_SUBSCRIBERS = 1
 SERVICE_SUBSCRIBER_PROFILES = 2
+# Brew-Erweiterung `dmo-position` (brew-server docs/Brew-Extensions.md):
+# DMO-Teilnehmer und DMO-Gateways fuer die Karte. Geht nur hinaus, wenn der
+# Server die Erweiterung im 101 anbietet.
+SERVICE_DMO_POSITION = 0x26
+EXT_DMO_POSITION = "dmo-position"
 
 # Ein Traffic-Frame traegt 60 ms Audio = 2 ACELP-Subframes a 137 Bit.
 ACELP_SUBFRAME_BITS = 137
@@ -356,6 +361,11 @@ def build_frame(msg_type: int, identifier: _uuid.UUID, data: bytes,
 def build_service(msg_type: int, payload: object) -> bytes:
     blob = json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\x00"
     return struct.pack("<BB", CLASS_SERVICE, msg_type) + blob
+
+
+def build_dmo_position(payload: dict) -> bytes:
+    """`0xf4 0x26 <JSON> 0x00`, Felder siehe app/dmo_positions.py."""
+    return build_service(SERVICE_DMO_POSITION, payload)
 
 
 def build_query_subscribers(issis: list[int]) -> bytes:

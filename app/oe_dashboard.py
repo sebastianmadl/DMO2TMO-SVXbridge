@@ -21,7 +21,7 @@ import asyncio
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from html.parser import HTMLParser
 from typing import Optional
@@ -41,6 +41,51 @@ class Eintrag:
     issi: int
     zeit: Optional[float]      # epoch, lokale Zeit wie am Dashboard
     zeit_text: str
+    # Ab hier nur fuer die Kartenpositionen (app/dmo_positions.py)
+    typ: str = "VOICE"         # VOICE / POS / GPS
+    comment: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+
+
+@dataclass
+class Dashboard:
+    """Alles, was der Parser aus einer Seite holt."""
+    eintraege: list[Eintrag] = field(default_factory=list)   # alle Typen
+    # Gateways aus der Tabelle der verbundenen Knoten; None = Tabelle fehlt
+    verbunden: Optional[set[str]] = None
+
+    def voice(self) -> list[Eintrag]:
+        return [e for e in self.eintraege if e.typ == "VOICE"]
+
+    def leer(self) -> bool:
+        return not self.eintraege and not self.verbunden
+
+
+# "E;01619.25;N;4808.88;000.0;" - Laenge vor Breite, Grad und Minuten wie
+# bei APRS (gggmm.mm / ggmm.mm). Siehe docs/tetra_fw_protocol.md.
+_POS = re.compile(r"([EW]);(\d{3,5}(?:\.\d+)?);([NS]);(\d{3,4}(?:\.\d+)?)")
+
+
+def grad(text: str) -> float:
+    """ggmm.mm bzw. gggmm.mm -> Dezimalgrad."""
+    wert = float(text)
+    ganz = int(wert // 100)
+    return ganz + (wert - ganz * 100) / 60.0
+
+
+def position(text: str) -> Optional[tuple[float, float]]:
+    """POS-Spalte -> (Breite, Laenge) in Dezimalgrad, None ohne Position."""
+    treffer = _POS.search(text or "")
+    if not treffer:
+        return None
+    lon = grad(treffer.group(2)) * (-1 if treffer.group(1) == "W" else 1)
+    lat = grad(treffer.group(4)) * (-1 if treffer.group(3) == "S" else 1)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    if lat == 0 and lon == 0:
+        return None            # kein Fix
+    return lat, lon
 
 
 class _Zeilen(HTMLParser):
@@ -104,6 +149,8 @@ def _spalten(kopf: list[str]) -> Optional[dict[str, int]]:
         "call": finde("call"),
         "type": finde("type", "typ"),
         "id": finde("id", "issi"),
+        "comment": finde("comment"),
+        "pos": finde("pos"),
     }
     if None in (idx["gateway"], idx["call"], idx["type"], idx["id"]):
         return None
@@ -120,21 +167,45 @@ def _zeit(text: str) -> Optional[float]:
     return None
 
 
-def parse(html: str) -> list[Eintrag]:
-    """Alle VOICE-Zeilen aus dem Lastheard, juengste zuerst."""
+def _knoten_kopf(kopf: list[str]) -> bool:
+    """Kopfzeile der Tabelle der verbundenen Knoten."""
+    namen = [c.strip().lower() for c in kopf]
+    return "gateway" in namen and any(n.startswith("connected")
+                                      for n in namen)
+
+
+TYPEN = ("VOICE", "POS", "GPS")
+
+
+def parse_dashboard(html: str) -> Dashboard:
+    """Lastheard (VOICE/POS/GPS, juengste zuerst) und verbundene Knoten."""
     p = _Zeilen()
     p.feed(html)
     p.close()
-    eintraege = []
+    out = Dashboard()
+    eintraege = out.eintraege
     idx = None
+    knoten_spalte = None       # Spalte "Gateway" der Knotentabelle
     for zeile in p.zeilen:
+        if _knoten_kopf(zeile):
+            knoten_spalte = [c.strip().lower() for c in zeile].index("gateway")
+            idx = None
+            if out.verbunden is None:
+                out.verbunden = set()
+            continue
         neu = _spalten(zeile)
         if neu is not None:
             idx = neu
+            knoten_spalte = None
+            continue
+        if knoten_spalte is not None:
+            if len(zeile) > knoten_spalte and zeile[knoten_spalte].strip():
+                out.verbunden.add(zeile[knoten_spalte].strip().upper())
             continue
         if idx is None or len(zeile) <= max(v for v in idx.values() if v is not None):
             continue
-        if zeile[idx["type"]].strip().upper() != "VOICE":
+        typ = zeile[idx["type"]].strip().upper()
+        if typ not in TYPEN:
             continue
         try:
             issi = int(zeile[idx["id"]].strip())
@@ -143,12 +214,26 @@ def parse(html: str) -> list[Eintrag]:
         if not 0 < issi <= 0xFFFFFF:
             continue
         zt = zeile[idx["zeit"]] if idx["zeit"] is not None else ""
+        lat = lon = None
+        if typ != "VOICE" and idx["pos"] is not None:
+            pos = position(zeile[idx["pos"]])
+            if pos is None:
+                continue
+            lat, lon = pos
         eintraege.append(Eintrag(
             gateway=zeile[idx["gateway"]].strip(),
             call=zeile[idx["call"]].strip(),
-            issi=issi, zeit=_zeit(zt), zeit_text=zt))
+            issi=issi, zeit=_zeit(zt), zeit_text=zt, typ=typ,
+            comment=(zeile[idx["comment"]].strip()
+                     if idx["comment"] is not None else ""),
+            lat=lat, lon=lon))
     eintraege.sort(key=lambda e: e.zeit or 0, reverse=True)
-    return eintraege
+    return out
+
+
+def parse(html: str) -> list[Eintrag]:
+    """Alle VOICE-Zeilen aus dem Lastheard, juengste zuerst."""
+    return parse_dashboard(html).voice()
 
 
 # Das OE-Dashboard ist ein 494-Byte-Geruest, das die Tabellen per jQuery
@@ -188,7 +273,7 @@ def finde(eintraege: list[Eintrag], gateway: str, max_age: float,
 
 class DashboardLookup:
     def __init__(self):
-        self._cache: tuple[float, str, list[Eintrag]] = (0.0, "", [])
+        self._cache: tuple[float, str, Dashboard] = (0.0, "", Dashboard())
         self._lock = asyncio.Lock()
         self.last_error = ""
         self.last_fetch: Optional[float] = None
@@ -199,29 +284,36 @@ class DashboardLookup:
         self._ziel: dict[str, str] = {}
 
     async def eintraege(self, url: str, force: bool = False) -> list[Eintrag]:
+        """VOICE-Zeilen, juengste zuerst (leer bei einem Fehler)."""
+        return (await self.seite(url, force)).voice()
+
+    async def seite(self, url: str, force: bool = False,
+                    max_cache: float = CACHE_SECONDS) -> Dashboard:
+        """Ganze Seite. Bei einem Fehler eine leere Seite, last_error gesetzt."""
         async with self._lock:
             zeit, alt_url, daten = self._cache
             if (not force and alt_url == url
-                    and time.monotonic() - zeit < CACHE_SECONDS):
+                    and time.monotonic() - zeit < max_cache):
                 return daten
             import aiohttp
             from urllib.parse import urljoin
             try:
                 timeout = aiohttp.ClientTimeout(total=FETCH_TIMEOUT)
                 async with aiohttp.ClientSession(timeout=timeout) as s:
-                    daten = []
+                    daten = Dashboard()
                     bekannt = self._ziel.get(url)
                     if bekannt:
-                        daten = parse(await self._hole(s, bekannt))
-                    if not daten:
+                        daten = parse_dashboard(await self._hole(s, bekannt))
+                    if daten.leer():
                         html = await self._hole(s, url)
-                        daten = parse(html)
-                        if daten:
+                        daten = parse_dashboard(html)
+                        if not daten.leer():
                             self._ziel[url] = url
-                        for ziel in ([] if daten else nachlade_ziele(html)):
+                        for ziel in ([] if not daten.leer()
+                                     else nachlade_ziele(html)):
                             ziel = urljoin(url, ziel)
-                            daten = parse(await self._hole(s, ziel))
-                            if daten:
+                            daten = parse_dashboard(await self._hole(s, ziel))
+                            if not daten.leer():
                                 self._ziel[url] = ziel
                                 log.info("Dashboard-Daten kommen aus %s", ziel)
                                 break
@@ -231,7 +323,7 @@ class DashboardLookup:
                 if text != self.last_error:
                     log.warning("Dashboard nicht lesbar: %s", text)
                 self.last_error = text
-                return []
+                return Dashboard()
             self.last_error = ""
             self.last_fetch = time.time()
             self._cache = (time.monotonic(), url, daten)

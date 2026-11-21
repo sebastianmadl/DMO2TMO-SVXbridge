@@ -211,6 +211,7 @@ async def amain(path: str) -> int:
                     "bleibt ein Gruppenruf auf dem Server offen")
     await client.stop()
     router.tetra_fw.close()
+    await router.dmo_positions.close()
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)

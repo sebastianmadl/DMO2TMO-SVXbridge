@@ -548,6 +548,59 @@ async def api_tetra_fw(request: web.Request):
     return await _apply(request, raw, "Lastheard-Einstellungen")
 
 
+def _opt_float(value, name: str):
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return float(str(value).replace(",", "."))
+    except ValueError:
+        raise web.HTTPBadRequest(text=f"{name}: keine Zahl")
+
+
+def _int(value, name: str, default: int = 0) -> int:
+    if value is None or str(value).strip() == "":
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise web.HTTPBadRequest(text=f"{name}: keine ganze Zahl")
+
+
+@needs("system")
+async def api_map(request: web.Request):
+    """Map settings: DMO positions to the brew-server (dmo-position)."""
+    cfg: cfgmod.Config = request.app["cfg"]
+    dmo = request.app["router"].dmo_positions
+    if request.method == "GET":
+        return web.json_response({**asdict(cfg.map), "status": dmo.status()})
+    data = await request.json()
+    raw = cfg.to_dict()
+    m = raw.setdefault("map", {})
+    for key in ("enabled", "auto_gateways", "lip_fallback"):
+        if key in data:
+            m[key] = bool(data[key])
+    for key in ("poll_seconds", "user_min_interval", "max_age_hours"):
+        if key in data:
+            m[key] = _int(data[key], key, m.get(key, 0))
+    if "gateways" in data:
+        gws = []
+        for i, g in enumerate(data["gateways"] or []):
+            g = g or {}
+            call = str(g.get("call") or "").strip().upper()
+            if not call and not any(str(g.get(k) or "").strip()
+                                    for k in ("issi", "name", "lat", "lon")):
+                continue                 # leere Zeile
+            gws.append({
+                "call": call,
+                "issi": _int(g.get("issi"), f"Gateway {i + 1} ISSI"),
+                "name": str(g.get("name") or "").strip(),
+                "lat": _opt_float(g.get("lat"), f"Gateway {i + 1} Breite"),
+                "lon": _opt_float(g.get("lon"), f"Gateway {i + 1} Länge"),
+            })
+        m["gateways"] = gws
+    return await _apply(request, raw, "Karten-Einstellungen")
+
+
 def _dashboard_status(request: web.Request) -> dict:
     d = request.app["router"].dashboard
     return {"hits": d.hits, "misses": d.misses, "last_error": d.last_error,
@@ -909,6 +962,8 @@ def build_app(cfg, state, router, client, *, config_path: str,
     app.router.add_post("/api/nodeinfo", api_nodeinfo)
     app.router.add_post("/api/tetra_fw", api_tetra_fw)
     app.router.add_get("/api/tetra_fw/dashboard", api_dashboard_test)
+    app.router.add_get("/api/map", api_map)
+    app.router.add_post("/api/map", api_map)
     app.router.add_get("/api/audio", api_audio)
     app.router.add_post("/api/audio", api_audio)
     app.router.add_get("/api/config", api_config)

@@ -31,6 +31,7 @@ from .brew.client import BrewHandler
 from .schedule import RouteScheduler
 from .state import AppState, LastHeardEntry
 from .tetra_fw import TetraFwSender
+from .dmo_positions import DmoPositions
 from .oe_dashboard import DashboardLookup
 
 log = logging.getLogger("routing")
@@ -149,6 +150,9 @@ class Router(BrewHandler):
         self.tetra_fw = TetraFwSender(lambda: self.cfg)
         # Quell-ISSI fremder Sprecher aus dem OE-Dashboard
         self.dashboard = DashboardLookup()
+        # DMO-Positionen an die Karte des brew-servers (dmo-position)
+        self.dmo_positions = DmoPositions(lambda: self.cfg, self.dashboard,
+                                          self.tetra_fw.gateway_call)
         self._bg_tasks: set = set()
 
     def _mark_dynamic(self, route: cfgmod.Route) -> None:
@@ -166,6 +170,7 @@ class Router(BrewHandler):
 
     def attach(self, client) -> None:
         self.client = client
+        self.dmo_positions.attach(client)
 
     async def reload(self, cfg: cfgmod.Config) -> list[str]:
         """Uebernimmt eine geaenderte Konfiguration im laufenden Betrieb.
@@ -199,6 +204,7 @@ class Router(BrewHandler):
 
         fw_neu = (asdict(cfg.tetra_fw) != asdict(self.cfg.tetra_fw)
                   and cfg.tetra_fw.enabled)
+        map_neu = asdict(cfg.map) != asdict(self.cfg.map)
 
         merker = {gssi: (s.manual, s._manual_until)
                   for gssi, s in self.schedulers.items()}
@@ -224,6 +230,8 @@ class Router(BrewHandler):
             # Neu eingeschaltet oder Gateway-Daten geaendert: Bake erneut,
             # damit das Dashboard den neuen Stand gleich zeigt.
             self.tetra_fw.start_beacon()
+        if map_neu:
+            self.dmo_positions.changed()
         log.info("Konfiguration neu geladen: %d Zeilen%s", len(cfg.routes),
                  f", Neustart noetig fuer {', '.join(needs_restart)}"
                  if needs_restart else "")
@@ -279,8 +287,10 @@ class Router(BrewHandler):
     async def on_connected(self, client) -> None:
         self.attach(client)
         await client.affiliate(self.active_gssis())
+        self.dmo_positions.on_connected(client)
 
     async def on_disconnected(self, client) -> None:
+        self.dmo_positions.on_disconnected()
         for call in list(self.calls.values()):
             await self._close_call(call, reason="Verbindung weg")
         self.floors.clear()
@@ -869,6 +879,7 @@ class Router(BrewHandler):
     async def tick(self) -> None:
         """Einmal pro Sekunde: Zeitplan pruefen, Timeouts abarbeiten."""
         now = time.time()
+        self.dmo_positions.tick()
 
         for route in self.cfg.routes:
             scheduler = self.schedulers[route.gssi]

@@ -78,6 +78,14 @@ in `app/tetra_fw.py`, Config `tetra_fw`, WebUI System -> „Lastheard
 (TETRA-AUSTRIA)“. Protokoll in `docs/tetra_fw_protocol.md`, Stand in
 `WORKLOG.md`.
 
+**DMO-Positionen an die brew-server-Karte (2026-11-21):** `app/dmo_positions.py`,
+Config `map`, WebUI System -> „Karte (brew-server)“, `/api/map`. Quelle ist das
+OE-Dashboard (GPS = Teilnehmer, POS mit Call = Gateway = Bake, Knotenliste =
+online), Ziel die Brew-Erweiterung `dmo-position` (`0xf4 0x26` JSON), nur wenn
+der Server sie im 101 anbietet (`BrewClient.extensions`). Format ist mit dem
+brew-server abgestimmt - Aenderungen nur gemeinsam. Details
+`docs/dmo-position.md`.
+
 ---
 
 # 📋 TODO (svxtetra, Stand 2026-09-08)

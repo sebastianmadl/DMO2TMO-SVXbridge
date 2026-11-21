@@ -34,6 +34,11 @@ class BrewHandler:
     async def on_error_message(self, msg: p.ErrorMessage) -> None: ...
 
 
+def parse_extensions(header: str) -> set[str]:
+    """`X-Brew-Extensions: bts-info, dmo-position` -> {"bts-info", ...}."""
+    return {t.strip().lower() for t in (header or "").split(",") if t.strip()}
+
+
 class BrewClient:
     def __init__(self, cfg, handler: Optional[BrewHandler] = None):
         self.cfg = cfg
@@ -52,6 +57,10 @@ class BrewClient:
         self.affiliated_groups: set[int] = set()
         self.last_error: Optional[str] = None
         self.connect_count = 0
+        # Brew-Erweiterungen, die der Server im 101 anbietet
+        # (X-Brew-Extensions). Leer bei TetraPack, BrandMeister und aelteren
+        # brew-servern - dann bleibt alles beim Alten.
+        self.extensions: set[str] = set()
 
     # ------------------------------------------------------------ Lifecycle
 
@@ -99,6 +108,7 @@ class BrewClient:
 
     async def _teardown(self) -> None:
         self.connected = False
+        self.extensions = set()
         for task in self._tasks:
             task.cancel()
         self._tasks.clear()
@@ -138,6 +148,11 @@ class BrewClient:
             max_msg_size=0,
         )
         self._set_nodelay()
+        self.extensions = parse_extensions(self._upgrade_header(
+            "X-Brew-Extensions"))
+        if self.extensions:
+            log.info("Server bietet Brew-Erweiterungen an: %s",
+                     ", ".join(sorted(self.extensions)))
         self.connected = True
         self.connect_count += 1
         self.last_error = None
@@ -156,6 +171,17 @@ class BrewClient:
         finally:
             self.connected = False
             await self.handler.on_disconnected(self)
+
+    def has_extension(self, name: str) -> bool:
+        return self.connected and name.lower() in self.extensions
+
+    def _upgrade_header(self, name: str) -> str:
+        """Header aus der 101-Antwort des WebSocket-Upgrades."""
+        response = getattr(self._ws, "_response", None)
+        headers = getattr(response, "headers", None)
+        if headers is None:
+            return ""
+        return headers.get(name, "") or ""
 
     def _base_headers(self) -> dict:
         return {

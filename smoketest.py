@@ -17,6 +17,7 @@ import hashlib
 import logging
 import os
 import sys
+import time
 import uuid
 
 from aiohttp import web, WSMsgType
@@ -71,7 +72,9 @@ async def handle_discovery(request: web.Request):
 
 
 async def handle_ws(request: web.Request):
+    # Wie ein brew-server, der die Kartenerweiterung anbietet
     ws = web.WebSocketResponse(protocols=("brew",))
+    ws.headers["X-Brew-Extensions"] = "bts-info, dmo-position"
     await ws.prepare(request)
     ws_ref["ws"] = ws
     received.append(("ws-open", request.headers.get("X-Brew-Mode")))
@@ -88,8 +91,28 @@ async def handle_ws(request: web.Request):
     return ws
 
 
+def _jetzt(delta: float = 0) -> str:
+    return time.strftime("%d.%m.%Y %H:%M:%S", time.localtime(time.time() + delta))
+
+
+async def handle_dash(request: web.Request):
+    """OE-Dashboard-Attrappe: Knotenliste, Gateway-Bake, eine GPS-Zeile."""
+    kopf = ("<tr><th>Gateway</th><th>Comment</th><th>Time</th><th>Call</th>"
+            "<th>Type</th><th>TG</th><th>ID</th><th>-</th><th>POS</th></tr>")
+    return web.Response(content_type="text/html", text=(
+        "<table><tr><th>Gateway</th><th>Comment</th><th>Connected since</th></tr>"
+        "<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>x</td></tr>" + kopf +
+        f"<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>{_jetzt(-60)}</td>"
+        "<td>OE1GKS</td><td>GPS</td><td>#232</td><td>2321109</td><td></td>"
+        "<td>E;01619.25;N;4808.88;000.0;</td></tr>"
+        f"<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>{_jetzt(-600)}</td>"
+        "<td>OE1XCS-T</td><td>POS</td><td>#232</td><td>232102</td><td></td>"
+        "<td>E;01623.32;N;4809.99;000;</td></tr></table>"))
+
+
 async def run_server() -> web.AppRunner:
     app = web.Application()
+    app.router.add_get("/dash", handle_dash)
     app.router.add_get("/brew/", handle_discovery)
     app.router.add_get("/brew/session/{token}", handle_ws)
     runner = web.AppRunner(app)
@@ -132,7 +155,9 @@ def build_config() -> cfgmod.Config:
         },
         "reflectors": [{"name": "R2", "enabled": True, "host": "127.0.0.1"}],
         "tetra_fw": {"enabled": True, "gateway_call": "OE0TST-R",
-                     "gateway_comment": "Smoketest", "port": FW_PORT},
+                     "gateway_comment": "Smoketest", "port": FW_PORT,
+                     "dashboard_url": f"http://127.0.0.1:{PORT}/dash"},
+        "map": {"enabled": True},
         "routes": [
             {"gssi": 2321, "reflector": "R2", "tg": 2321, "priority": 5},
         ],
@@ -188,6 +213,22 @@ async def main() -> int:
         check("die eine GSSI affiliiert",
               sorted(affiliate[-1].groups) == [2321],
               str(affiliate[-1].groups))
+
+    print("\nDMO-Positionen (dmo-position):")
+    check("Erweiterung aus dem 101 gelesen",
+          client.has_extension("dmo-position"), str(client.extensions))
+    received.clear()
+    await router.dmo_positions.poll()
+    await asyncio.sleep(0.3)
+    dmo = [m.payload for k, m in received
+           if k == "ServiceMessage" and m.type == p.SERVICE_DMO_POSITION]
+    gw = [m for m in dmo if m.get("kind") == "gateway"]
+    user = [m for m in dmo if m.get("kind") == "user"]
+    check("Gateway aus der Bake gemeldet",
+          len(gw) == 1 and gw[0]["issi"] == 232102 and gw[0]["online"], repr(gw))
+    check("Teilnehmer mit Position und via",
+          len(user) == 1 and user[0]["issi"] == 2321109
+          and user[0]["via"] == 232102 and "lat" in user[0], repr(user))
 
     print("\nGruppenruf TETRA -> Bruecke -> Loopback:")
     received.clear()

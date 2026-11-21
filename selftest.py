@@ -1195,13 +1195,220 @@ def test_tetra_fw():
           asyncio.run(sender.voice(2320998, "X")) is False)
 
 
+MAP_HTML = """<html><body><table>
+<tr><th>Gateway</th><th>Comment</th><th>Connected since</th><th>Network address</th>
+<th>state</th><th>TG</th><th>TX on</th><th>TX off</th><th>Monitor TG</th></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>09.11.2026 01:00:40</td>
+<td>1.2.3.4</td><td></td><td>IDLE</td><td></td><td></td><td>[ 232 ]</td></tr>
+<tr><td>OE4SXM-R</td><td>Bridge</td><td>09.11.2026 01:00:40</td>
+<td>1.2.3.5</td><td></td><td>IDLE</td><td></td><td></td><td>[ 232 ]</td></tr>
+<tr><th>Gateway</th><th>Comment</th><th>Time sort v</th><th>Call</th><th>Type</th>
+<th>TG</th><th>ID</th><th>-</th><th>POS</th></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>09.11.2026 12:50:00</td><td>OE1GKS</td>
+<td>VOICE</td><td>#232</td><td>2321109</td><td></td><td></td></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>09.11.2026 12:40:00</td><td>OE1GKS</td>
+<td>GPS</td><td>#232</td><td>2321109</td><td>aprs.fi</td><td>E;01619.25;N;4808.88;000.0;</td></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>09.11.2026 09:01:45</td><td>OE1XCS-T</td>
+<td>POS</td><td>#232</td><td>232102</td><td>aprs.fi</td><td>E;01623.32;N;4809.99;000;</td></tr>
+<tr><td>OE6XAG-R</td><td>Tetra-Schoeckl</td><td>09.11.2026 09:26:08</td><td>OE6XAG-R</td>
+<td>POS</td><td>#232</td><td>232601</td><td>aprs.fi</td><td>E;01528.02;N;4711.93;000;</td></tr>
+<tr><td>OE6XBF-R</td><td>Tetra-Stradnerkogel</td><td>09.11.2026 11:10:38</td><td>OE6RSD</td>
+<td>GPS</td><td>#232</td><td>2326236</td><td>aprs.fi</td><td>E;01545.70;N;4700.39;000.0;</td></tr>
+<tr><td>OE4SXM-R</td><td>Bridge</td><td>09.11.2026 12:55:00</td><td>OE4SXM</td>
+<td>VOICE</td><td>#232</td><td>2320997</td><td></td><td></td></tr>
+<tr><td>OE4SXM-R</td><td>Bridge</td><td>09.11.2026 12:00:00</td><td>OE4SXM-R</td>
+<td>POS</td><td>#232</td><td>2329999</td><td>aprs.fi</td><td>E;01624.91;N;4816.82;000;</td></tr>
+<tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>01.11.2026 10:00:00</td><td>OE1OLD</td>
+<td>GPS</td><td>#232</td><td>2321999</td><td>aprs.fi</td><td>E;01619.00;N;4808.00;000.0;</td></tr>
+</table></body></html>"""
+
+
+def _decode_lip(data: bytes):
+    """Wie brew-server position::decode_lip (Kurzbericht, PID 0x0A)."""
+    pdu = data[1:]
+    bit = lambda i: (pdu[i // 8] >> (7 - i % 8)) & 1
+    take = lambda a, n: sum(bit(a + k) << (n - 1 - k) for k in range(n))
+    sx = lambda v, n: v - (1 << n) if v >> (n - 1) else v
+    return (data[0], take(0, 2), sx(take(29, 24), 24) * 180 / (1 << 24),
+            sx(take(4, 25), 25) * 360 / (1 << 25))
+
+
+def test_dmo_positions():
+    print("DMO-Positionen an die Karte (dmo-position):")
+    import asyncio
+    import json as _json
+    from app import oe_dashboard as od
+    from app.brew.client import parse_extensions
+    from app.dmo_positions import DmoPositions, lip_short_report, user_message
+
+    check("X-Brew-Extensions zerlegt",
+          parse_extensions(" bts-info, DMO-Position ,") == {"bts-info", "dmo-position"})
+    check("ohne Header keine Erweiterung", parse_extensions("") == set())
+    msg = p.build_dmo_position({"kind": "user", "issi": 1, "via": 2})
+    check("Rahmen 0xf4 0x26 JSON 0x00", msg[:2] == b"\xf4\x26" and msg[-1:] == b"\x00"
+          and _json.loads(msg[2:-1]) == {"kind": "user", "issi": 1, "via": 2})
+    back = p.parse(msg)
+    check("als Service 0x26 lesbar", back.type == 0x26 and back.payload["via"] == 2)
+    check("user ohne Fix: kein lat/lon, NO USER kein Name",
+          user_message(1, 2, 0.0, 0.0, None, "NO USER") == {"kind": "user", "issi": 1, "via": 2})
+
+    lat, lon = od.position("E;01619.25;N;4808.88;000.0;")
+    check("ggmm.mm -> Dezimalgrad", abs(lat - 48.148) < 1e-6 and abs(lon - 16.320833) < 1e-5,
+          f"{lat} {lon}")
+    lat, lon = od.position("W;07400.60;S;3330.00;000;")
+    check("W/S negativ", lat == -33.5 and abs(lon + 74.01) < 1e-9, f"{lat} {lon}")
+    check("0/0 ist kein Fix", od.position("E;00000.00;N;0000.00;000;") is None)
+
+    seite = od.parse_dashboard(MAP_HTML)
+    check("Knotentabelle gelesen", seite.verbunden == {"OE1XCS-T", "OE4SXM-R"},
+          str(seite.verbunden))
+    check("GPS/POS/VOICE gelesen", sorted({e.typ for e in seite.eintraege}) ==
+          ["GPS", "POS", "VOICE"])
+    check("parse() bleibt bei VOICE", all(e.typ == "VOICE" for e in od.parse(MAP_HTML)))
+
+    lip = lip_short_report(48.148, 16.320833)
+    pid, typ, la, lo = _decode_lip(lip)
+    check("LIP-Kurzbericht dekodiert wie im brew-server",
+          pid == 0x0A and typ == 0 and len(lip) == 11 and abs(la - 48.148) < 1e-4
+          and abs(lo - 16.320833) < 1e-4, f"{lip.hex()} {la} {lo}")
+
+    # Konfiguration
+    raw = _example_raw()
+    _abgelehnt("Gateway ohne Call", {**raw, "map": {"gateways": [{"issi": 5}]}})
+    _abgelehnt("Gateway doppelt", {**raw, "map": {"gateways": [
+        {"call": "OE1XCS-T"}, {"call": "oe1xcs-t"}]}})
+    _abgelehnt("Breite ohne Laenge", {**raw, "map": {"gateways": [
+        {"call": "A", "lat": 48.1}]}})
+    _abgelehnt("Gateway-ISSI ueber 24 Bit", {**raw, "map": {"gateways": [
+        {"call": "A", "issi": 1 << 24}]}})
+    _abgelehnt("Gateway-ISSI = eigene Brew-ISSI", {**raw, "map": {"gateways": [
+        {"call": "A", "issi": raw["brew"]["issi"]}]}})
+    _abgelehnt("poll_seconds zu klein", {**raw, "map": {"poll_seconds": 1}})
+    cfg = cfgmod.from_dict({**raw, "map": {"enabled": True, "gateways": [
+        {"call": "oe1xcs-t", "issi": 9100001, "name": "Laaerberg"}]}})
+    check("Gateway-Eintrag geladen", cfg.map.gateway("OE1XCS-T").issi == 9100001)
+    check("ohne map-Abschnitt aus", cfgmod.from_dict(raw).map.enabled is False)
+
+    class FakeClient:
+        connected = True
+        def __init__(self, ext):
+            self.ext = ext
+            self.out = []
+            self.sds = []
+        def has_extension(self, name):
+            return name in self.ext
+        def send(self, payload):
+            self.out.append(_json.loads(payload[2:-1]))
+        def send_sds(self, destination, pdu, source=None):
+            self.sds.append((destination, pdu, source))
+
+    jetzt = time.mktime((2026, 11, 9, 13, 0, 0, 0, 0, -1))
+    dmo = DmoPositions(lambda: cfg, od.DashboardLookup(), lambda: "OE4SXM-R")
+    fc = FakeClient({"dmo-position"})
+    dmo.on_connected(fc)
+    check("Modus Erweiterung", dmo.mode() == "extension")
+    dmo.process(seite, dmo.mode(), now=jetzt)
+    gws = {m["issi"]: m for m in fc.out if m["kind"] == "gateway"}
+    users = [m for m in fc.out if m["kind"] == "user"]
+    check("Gateway aus den Einstellungen: ISSI und Name von dort, Standort aus der Bake",
+          9100001 in gws and gws[9100001]["name"] == "Laaerberg"
+          and abs(gws[9100001]["lat"] - 48.1665) < 1e-6 and gws[9100001]["online"],
+          str(gws.get(9100001)))
+    check("Gateway nur mit Bake: automatisch, offline (nicht in der Knotenliste)",
+          232601 in gws and gws[232601]["name"] == "Tetra-Schoeckl"
+          and gws[232601]["online"] is False, str(gws.get(232601)))
+    check("eigenes Gateway (Bruecke) nicht auf der Karte",
+          2329999 not in gws and 232102 not in gws, str(sorted(gws)))
+    gps = [u for u in users if "lat" in u]
+    check("GPS-Zeile -> user mit via, Zeit und Name",
+          len(gps) == 1 and gps[0]["issi"] == 2321109 and gps[0]["via"] == 9100001
+          and gps[0]["name"] == "OE1GKS"
+          and gps[0]["at_ms"] == int(time.mktime((2026, 11, 9, 12, 40, 0, 0, 0, -1)) * 1000),
+          str(gps))
+    dock = [u for u in users if "lat" not in u]
+    check("VOICE nach dem Fix: kein zweites Andocken am selben Gateway",
+          dock == [], str(dock))
+    check("Gateway ohne Bake/Eintrag: Teilnehmer nicht gemeldet, Gateway offen",
+          not any(u["issi"] == 2326236 for u in users)
+          and "OE6XBF-R" in dmo.unresolved, str(dmo.unresolved))
+    check("zu alte Zeile nicht gemeldet", not any(u["issi"] == 2321999 for u in users))
+    check("Sprecher der Bruecke nicht als DMO", not any(u["issi"] == 2320997 for u in users))
+
+    fc.out.clear()
+    dmo.process(seite, dmo.mode(), now=jetzt)
+    check("gleiche Seite noch einmal: nichts doppelt", fc.out == [], str(fc.out))
+
+    # Neue Verbindung: alles noch einmal; Andocken vor dem Fix
+    fc2 = FakeClient({"dmo-position"})
+    dmo.on_connected(fc2)
+    nur_voice = od.Dashboard(eintraege=[e for e in seite.eintraege
+                                        if not (e.typ == "GPS" and e.issi == 2321109)],
+                             verbunden=seite.verbunden)
+    dmo.process(nur_voice, "extension", now=jetzt)
+    dock = [u for u in fc2.out if u["kind"] == "user" and "lat" not in u]
+    check("VOICE ohne Fix: einmal am Gateway andocken",
+          len(dock) == 1 and dock[0]["issi"] == 2321109 and dock[0]["via"] == 9100001,
+          str(dock))
+    check("nach Reconnect Gateways wieder gesendet",
+          any(m["kind"] == "gateway" for m in fc2.out))
+
+    # Gateway aus den Einstellungen entfernt -> einmal offline
+    fc2.out.clear()
+    cfg_alt = cfg
+    cfg = cfgmod.from_dict({**raw, "map": {"enabled": True, "auto_gateways": False}})
+    dmo.changed()
+    dmo.process(nur_voice, "extension", now=jetzt)
+    off = [m for m in fc2.out if m["kind"] == "gateway"]
+    check("entferntes Gateway einmal offline gemeldet",
+          {m["issi"]: m["online"] for m in off} == {9100001: False, 232601: False}
+          or {m["issi"]: m["online"] for m in off} == {9100001: False},
+          str(off))
+    cfg = cfg_alt
+
+    # Rate-Limit je Teilnehmer
+    fc3 = FakeClient({"dmo-position"})
+    dmo.on_connected(fc3)
+    dmo.process(seite, "extension", now=jetzt)
+    import copy as _copy
+    neu = _copy.deepcopy(seite)
+    for e in neu.eintraege:
+        if e.typ == "GPS" and e.issi == 2321109:
+            e.zeit_text = "09.11.2026 12:59:00"
+            e.zeit = jetzt - 60
+            e.lat += 0.01
+    fc3.out.clear()
+    dmo.process(neu, "extension", now=jetzt)
+    check("neuer Fix innerhalb user_min_interval wartet",
+          not [m for m in fc3.out if m["kind"] == "user"], str(fc3.out))
+    dmo._user_at[2321109] -= 31
+    dmo.process(neu, "extension", now=jetzt)
+    check("danach geht er hinaus",
+          [m["issi"] for m in fc3.out if m["kind"] == "user"] == [2321109], str(fc3.out))
+
+    # Ohne Erweiterung
+    fc4 = FakeClient(set())
+    dmo.on_connected(fc4)
+    check("ohne Erweiterung, ohne LIP: Modus leer", dmo.mode() == "")
+    dmo.process(seite, dmo.mode(), now=jetzt)
+    check("ohne Erweiterung geht nichts hinaus", fc4.out == [] and fc4.sds == [])
+    check("Gateways trotzdem fuer die WebUI ermittelt", 9100001 in
+          {g.issi for g in dmo.gateways.values()}, str(dmo.gateways))
+    cfg = cfgmod.from_dict({**raw, "map": {"enabled": True, "lip_fallback": True,
+        "gateways": [{"call": "OE1XCS-T", "issi": 9100001}]}})
+    check("mit lip_fallback: Modus lip", dmo.mode() == "lip")
+    dmo.process(seite, "lip", now=jetzt)
+    check("LIP: keine dmo-position-Meldung", fc4.out == [], str(fc4.out))
+    check("LIP-SDS mit Teilnehmer als Absender",
+          len(fc4.sds) == 1 and fc4.sds[0][2] == 2321109 and fc4.sds[0][0] == 9100001
+          and abs(_decode_lip(fc4.sds[0][1])[2] - 48.148) < 1e-4, str(fc4.sds))
+
 def main() -> int:
     for test in (
         test_lengths, test_roundtrip, test_traffic_bits, test_sds,
         test_usrp, test_confgen, test_gain, test_web,
         test_schedule_grace, test_schedule_hard, test_schedule_cap,
         test_schedule_overnight, test_config, test_router_tetra,
-        test_tetra_fw, test_nodeinfo, test_dashboard,
+        test_tetra_fw, test_nodeinfo, test_dashboard, test_dmo_positions,
     ):
         test()
         print()

@@ -39,7 +39,7 @@ function showTab(key) {
     s.classList.toggle("active", s.id === "tab-" + key));
   try { localStorage.setItem("tab", key); } catch (e) {}
   if (key === "system") {
-    renderServices(); loadUsers(); loadConfig(); loadGain(); loadTetra(); loadTetraFw(); loadNodeInfo(); loadIdlist();
+    renderServices(); loadUsers(); loadConfig(); loadGain(); loadTetra(); loadTetraFw(); loadMap(); loadNodeInfo(); loadIdlist();
   }
   if (key === "routes") loadRoutes();
   if (key === "sds") pollSds();
@@ -816,6 +816,125 @@ $("fw-save")?.addEventListener("click", async () => {
     note($("fw-out"), d.hinweis);
     loadTetraFw(true);
   } catch (e) { note($("fw-out"), e.message, true); }
+});
+
+function mapGwRow(g) {
+  const row = document.createElement("div");
+  row.className = "gw-row";
+  const feld = (cls, ph, val, typ) => {
+    const i = document.createElement("input");
+    i.className = cls; i.placeholder = ph; i.autocomplete = "off";
+    if (typ) i.inputMode = typ;
+    i.value = val === null || val === undefined || val === 0 ? "" : val;
+    return i;
+  };
+  row.append(
+    feld("gw-call", "Call (OE1XCS-T)", g.call || ""),
+    feld("gw-issi", "ISSI (leer = Bake)", g.issi || "", "numeric"),
+    feld("gw-name", "Name (leer = Comment)", g.name || ""),
+    feld("gw-lat", "Breite 48.2082", g.lat, "decimal"),
+    feld("gw-lon", "Länge 16.3738", g.lon, "decimal"));
+  const del = document.createElement("button");
+  del.className = "btn small danger gw-del"; del.type = "button";
+  del.textContent = "Entfernen";
+  del.addEventListener("click", () => row.remove());
+  row.append(del);
+  return row;
+}
+function mapStatusText(st) {
+  if (!st) return "";
+  const teile = [];
+  teile.push(st.offered ? "brew-server bietet dmo-position an"
+    : st.mode === "lip" ? "keine Erweiterung, sende LIP-SDS"
+    : "brew-server bietet dmo-position nicht an – es geht nichts hinaus");
+  if (st.last_poll) teile.push("zuletzt gelesen " + new Date(st.last_poll * 1000).toLocaleTimeString());
+  teile.push(`gesendet: ${st.sent_gateways} Gateway, ${st.sent_users} Teilnehmer` +
+    (st.sent_lip ? `, ${st.sent_lip} LIP` : ""));
+  if (st.last_error) teile.push("Fehler: " + st.last_error);
+  return teile.join(" · ");
+}
+function mapFound(st) {
+  const box = $("map-found");
+  box.textContent = "";
+  if (!st) return;
+  const vorhanden = () => new Set([...document.querySelectorAll("#map-gws .gw-call")]
+    .map((i) => i.value.trim().toUpperCase()));
+  const zeile = (text, g) => {
+    const d = document.createElement("div");
+    d.className = "gw-found";
+    const t = document.createElement("span");
+    t.textContent = text;
+    d.append(t);
+    if (g && !vorhanden().has(g.call)) {
+      const b = document.createElement("button");
+      b.className = "btn small"; b.type = "button"; b.textContent = "Eintragen";
+      b.addEventListener("click", () => {
+        $("map-gws").append(mapGwRow(g));
+        b.remove();
+      });
+      d.append(b);
+    }
+    box.append(d);
+  };
+  for (const g of st.gateways || []) {
+    zeile(`${g.online ? "🟢" : "⚪"} ${g.call} · ISSI ${g.issi} · ${g.name} · ` +
+      `${g.lat.toFixed(5)}, ${g.lon.toFixed(5)} (${g.source === "dashboard" ? "Dashboard" :
+        g.source === "settings" ? "Einstellungen" : "Einstellungen + Dashboard"})`, g);
+  }
+  const grund = (w) => {
+    const t = w.split(":");
+    return {
+      unknown: "hat Teilnehmer, aber weder POS-Bake noch Eintrag – ISSI und Standort eintragen",
+      no_issi: "keine ISSI (keine POS-Bake am Dashboard)",
+      no_position: "kein Standort (keine POS-Bake am Dashboard)",
+      own_issi: `ISSI ${t[1]} ist die eigene Brew-ISSI`,
+      dup_issi: `ISSI ${t[1]} hat schon ${t[2]}`,
+    }[t[0]] || w;
+  };
+  for (const u of st.unresolved || []) {
+    zeile(`⚠️ ${u.call}: ${grund(u.why)}`, {call: u.call});
+  }
+}
+async function loadMap(force) {
+  if (!window.MAY.system || !$("map-enabled")) return;
+  if ($("map-enabled").dataset.loaded && !force) return;
+  try {
+    const d = await api("/api/map");
+    $("map-enabled").checked = !!d.enabled;
+    $("map-auto").checked = !!d.auto_gateways;
+    $("map-lip").checked = !!d.lip_fallback;
+    $("map-poll").value = d.poll_seconds;
+    $("map-interval").value = d.user_min_interval;
+    $("map-age").value = d.max_age_hours;
+    $("map-gws").textContent = "";
+    for (const g of d.gateways || []) $("map-gws").append(mapGwRow(g));
+    $("map-status").textContent = mapStatusText(d.status);
+    mapFound(d.status);
+    $("map-enabled").dataset.loaded = "1";
+  } catch (e) { note($("map-out"), e.message, true); }
+}
+$("map-gw-add")?.addEventListener("click", () => $("map-gws").append(mapGwRow({})));
+$("map-save")?.addEventListener("click", async () => {
+  const gateways = [...document.querySelectorAll("#map-gws .gw-row")].map((r) => ({
+    call: r.querySelector(".gw-call").value,
+    issi: r.querySelector(".gw-issi").value,
+    name: r.querySelector(".gw-name").value,
+    lat: r.querySelector(".gw-lat").value,
+    lon: r.querySelector(".gw-lon").value,
+  }));
+  try {
+    const d = await post("/api/map", {
+      enabled: $("map-enabled").checked,
+      auto_gateways: $("map-auto").checked,
+      lip_fallback: $("map-lip").checked,
+      poll_seconds: Number($("map-poll").value),
+      user_min_interval: Number($("map-interval").value),
+      max_age_hours: Number($("map-age").value),
+      gateways,
+    });
+    note($("map-out"), d.hinweis);
+    loadMap(true);
+  } catch (e) { note($("map-out"), e.message, true); }
 });
 
 async function loadGain() {

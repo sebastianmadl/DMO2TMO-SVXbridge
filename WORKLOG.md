@@ -4,6 +4,51 @@ Chronologie der Arbeiten. Neueste oben.
 
 ---
 
+## 2026-11-21 — DMO-Positionen an die brew-server-Karte
+
+### Erledigt
+
+- **Quelle geklaert:** das OE-Dashboard hat alles, was die Karte braucht.
+  GPS-Zeilen sind DMO-Teilnehmer mit Position (Call, ISSI, Gateway),
+  POS-Zeilen mit Call = Gateway sind die Baken der Gateways (eigene ID,
+  Position, Comment), die Knotentabelle sagt, wer verbunden ist. Damit sind
+  die offenen Punkte des Plans (Rufzeichen -> ISSI, woher die Positionen,
+  mehrere Gateways) ohne Rueckfrage beantwortet.
+- `app/oe_dashboard.py`: `parse_dashboard()` liest jetzt alle Typen samt
+  Position und die Knotentabelle; `parse()` liefert weiter nur VOICE.
+- `app/dmo_positions.py`: liest das Dashboard alle `poll_seconds`, ermittelt
+  die Gateways (Einstellungen vor Bake), schickt `gateway`- und
+  `user`-Meldungen (`0xf4 0x26`), Teilnehmer ohne Position docken per VOICE
+  am Gateway an. Eigenes Gateway (Bruecke) wird ausgelassen.
+- `BrewClient.extensions` liest `X-Brew-Extensions` aus dem 101. Ohne
+  `dmo-position` geht nichts hinaus; optional `lip_fallback` (LIP-Kurzbericht
+  als SDS mit Teilnehmer-ISSI als Absender).
+- Config `map` (+ `map.gateways`: Call, ISSI, Name, Breite/Laenge), WebUI
+  System -> „Karte (brew-server)“ mit Gateway-Editor und Liste der vom
+  Dashboard erkannten Gateways („Eintragen“), `/api/map`.
+- Doku `docs/dmo-position.md`.
+
+### Getestet
+
+- `selftest.py` neu `test_dmo_positions` (Parser, Umrechnung ggmm.mm,
+  Konfigpruefung, Gateways aus Einstellungen/Bake, online/offline, eigenes
+  Gateway, Altersgrenze, Rate-Limit, Reconnect, entferntes Gateway offline,
+  ohne Erweiterung nichts, LIP gegen den Decoder des brew-servers).
+- `smoketest.py`: Mini-Server bietet `dmo-position` im 101 an, liefert ein
+  Dashboard; Gateway- und Teilnehmer-Meldung kommen an.
+- Gegen das echte Dashboard (tetra-reflector.dyndns.org) trocken gelaufen:
+  5 Gateways aus Baken, 18 Teilnehmer-Meldungen.
+- WebUI im Browser angesehen (Desktop und 390 px).
+
+### Offen
+
+- Serverseite (brew-server, Karte Schritt 7b) baut `dmo-position` erst;
+  danach Feldtest gegen den VPS.
+- Gateway-IDs aus den Baken sind 6-stellig (z.B. 232102) - pruefen, dass
+  sie mit keinem echten Funkgeraet kollidieren.
+
+---
+
 ## 2026-11-10 — falscher Sprecher nach eigenem Durchgang
 
 Sebastian: "manchmal kommts am brew server an, manchmal nicht". Im Log

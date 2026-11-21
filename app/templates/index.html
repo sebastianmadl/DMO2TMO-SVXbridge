@@ -344,6 +344,48 @@
     <div id="fw-out"></div>
   </div>
 
+  <h2>Karte (brew-server)</h2>
+  <div class="card">
+    <div class="form">
+      <label class="switch"><span>DMO-Positionen an den brew-server</span>
+        <input type="checkbox" id="map-enabled"></label>
+      <label class="switch"><span>Gateways mit POS-Bake automatisch</span>
+        <input type="checkbox" id="map-auto"></label>
+      <label><span>Dashboard lesen alle (s)</span>
+        <input id="map-poll" type="number" min="10" max="3600"></label>
+      <label><span>Höchstens eine Position je Teilnehmer alle (s)</span>
+        <input id="map-interval" type="number" min="0" max="3600"></label>
+      <label><span>Ältere Zeilen nicht melden (h, 0 = alle)</span>
+        <input id="map-age" type="number" min="0" max="720"></label>
+      <label class="switch"><span>Ohne Erweiterung als LIP-SDS senden</span>
+        <input type="checkbox" id="map-lip"></label>
+
+      <div class="label" style="margin-top:10px">DMO-Gateways</div>
+      <div id="map-gws"></div>
+      <div class="btns">
+        <button class="btn small" id="map-gw-add">Gateway hinzufügen</button>
+      </div>
+      <button class="btn primary" id="map-save">Übernehmen</button>
+    </div>
+    <p class="hint">Schickt DMO-Teilnehmer und DMO-Gateways an die Karte des
+      brew-servers (Brew-Erweiterung <code>dmo-position</code>). Quelle ist das
+      Lastheard des OE-Dashboards (Adresse siehe Lastheard oben): GPS-Zeilen
+      sind Teilnehmer-Positionen, POS-Zeilen die Baken der Gateways, VOICE-Zeilen
+      docken einen Teilnehmer ohne Position am Gateway an. Online ist ein
+      Gateway, solange es in der Knotenliste des Dashboards steht.</p>
+    <p class="hint">Bietet der brew-server die Erweiterung nicht an (TetraPack,
+      BrandMeister, ältere Versionen), geht nichts davon hinaus. Nur mit
+      <b>LIP-SDS</b> geht die Position dann als normale LIP-Meldung mit der
+      ISSI des Teilnehmers als Absender – ohne Gateway und ohne DMO-Symbol.</p>
+    <p class="hint">Je Gateway: <b>Call</b> wie am Dashboard (z.B.
+      <code>OE1XCS-T</code>), <b>ISSI</b> für die Karte (leer = ID aus der
+      POS-Bake), Name und Standort in Dezimalgrad (leer = aus der POS-Bake).
+      Die ISSI darf keinem echten Funkgerät gehören. Wirkt ohne Neustart.</p>
+    <p class="hint" id="map-status">&nbsp;</p>
+    <div id="map-found"></div>
+    <div id="map-out"></div>
+  </div>
+
   <h2>Audiopegel</h2>
   <div class="card">
     <p class="hint">Gilt für alle Reflektoren gemeinsam. Je Richtung gibt es

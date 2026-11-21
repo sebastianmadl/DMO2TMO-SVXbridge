@@ -50,6 +50,23 @@ tetra_fw:
   dashboard_url: ""                # leer = http://<Reflektor-Host>/
   dashboard_max_age: 30            # Sekunden
 
+map:
+  # DMO-Positionen an die Karte des brew-servers (docs/dmo-position.md).
+  # Geht nur hinaus, wenn der Server die Brew-Erweiterung dmo-position
+  # anbietet. Quelle ist das Dashboard aus tetra_fw.dashboard_url.
+  enabled: false
+  poll_seconds: 30                 # Dashboard so oft lesen
+  user_min_interval: 30            # hoechstens eine Position je ISSI so oft
+  max_age_hours: 24                # aeltere Zeilen nicht melden, 0 = alle
+  auto_gateways: true              # Gateways mit POS-Bake auch ohne Eintrag
+  lip_fallback: false              # ohne Erweiterung als LIP-SDS senden
+  gateways: []
+  #  - call: "OE1XCS-T"            # wie am Dashboard
+  #    issi: 0                     # 0 = ID aus der POS-Bake
+  #    name: ""                    # leer = Comment aus dem Dashboard
+  #    lat: 48.1665                # Dezimalgrad, weglassen = aus der Bake
+  #    lon: 16.3887
+
 audio:
   # loopback = Etappe 2: ACELP-Frames unveraendert auf target_gssi
   #            zurueckspiegeln, zum Testen ohne Codec und ohne svxlink
