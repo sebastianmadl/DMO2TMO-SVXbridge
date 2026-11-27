@@ -34,9 +34,10 @@ DNS_TTL = 300.0
 
 
 def _feld(text) -> str:
-    """Ein Komma oder Zeilenumbruch wuerde die Spalten verschieben."""
-    return (str(text if text is not None else "")
-            .replace(",", " ").replace("\r", " ").replace("\n", " ").strip())
+    """Ein Komma oder Zeilenumbruch wuerde die Spalten verschieben, und
+    Steuerzeichen landen am Dashboard als Kaestchen."""
+    roh = str(text if text is not None else "").replace(",", " ")
+    return "".join(c if c.isprintable() else " " for c in roh).strip()
 
 
 def zeitstempel(ts: Optional[float] = None) -> str:
