@@ -69,6 +69,23 @@ def test_roundtrip():
     check("GROUP_TX mnemonic", msg.group.mnemonic_text == "OE4SXM",
           f"ist {msg.group.mnemonic_text!r}")
 
+    # Gegenstelle deklariert 7 Bit, schickt aber 8-Bit-ASCII (OE-Dashboard
+    # zeigte dafuer "'Q&..a" statt OE1SXM, 2026-11-27).
+    falsch = bytes([p.CODING_SCHEME_7BIT, 48]) + b"OE1SXM" + bytes(26)
+    check("Mnemonic: 7 Bit deklariert, 8 Bit gesendet",
+          p.decode_mnemonic(falsch) == "OE1SXM",
+          f"ist {p.decode_mnemonic(falsch)!r}")
+    echt7 = p.encode_mnemonic("OE1SXM", p.CODING_SCHEME_7BIT)
+    check("Mnemonic: echtes 7 Bit bleibt 7 Bit",
+          p.decode_mnemonic(echt7) == "OE1SXM",
+          f"ist {p.decode_mnemonic(echt7)!r}")
+    check("Mnemonic: 8 Bit bleibt 8 Bit",
+          p.decode_mnemonic(p.encode_mnemonic("OE6DJG")) == "OE6DJG")
+    from app.tetra_fw import voice_line
+    zeile = voice_line("OE4SXM-R", "x", "'Q&\x15\x1aa", 232, 2320856)
+    check("Lastheard: keine Steuerzeichen in der Zeile",
+          "\x15" not in zeile and "\x1a" not in zeile, repr(zeile))
+
     raw = p.build_group_idle(ident, cause=3)
     msg = p.parse(raw)
     check("GROUP_IDLE cause", msg.cause == 3)

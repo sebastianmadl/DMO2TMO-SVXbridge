@@ -269,10 +269,26 @@ def decode_mnemonic(data: bytes) -> str:
     if bits == 0:
         return ""
     payload = data[2:]
-    if scheme == CODING_SCHEME_7BIT:
-        return unpack_7bit(payload, bits // 7)
     length = min((bits + 7) // 8, len(payload))
-    return payload[:length].decode("iso-8859-1", errors="replace")
+    als_8bit = payload[:length].decode("iso-8859-1", errors="replace")
+    if scheme == CODING_SCHEME_7BIT:
+        als_7bit = unpack_7bit(payload, bits // 7)
+        # Manche Gegenstellen deklarieren 7 Bit (Scheme 0x00), schicken aber
+        # schlichtes 8-Bit-ASCII. Am OE-Dashboard wurde aus "OE1SXM" so
+        # "'Q&\x15\x1aa" (2026-11-27). Darum: ist die 7-Bit-Lesart nicht
+        # druckbar, die 8-Bit-Lesart aber schon, gilt die 8-Bit-Lesart.
+        # Ebenso, wenn beide druckbar sind, die Bitlaenge aber nur zu 8 Bit
+        # passt (48 Bit = 6 Zeichen a 8, keine ganze Zahl a 7).
+        if _druckbar(als_8bit) and (
+                not _druckbar(als_7bit)
+                or (bits % 8 == 0 and bits % 7 != 0)):
+            return als_8bit
+        return als_7bit
+    return als_8bit
+
+
+def _druckbar(text: str) -> bool:
+    return bool(text) and all(0x20 <= ord(c) < 0x7F for c in text)
 
 
 def pack_7bit(text: str) -> bytes:
