@@ -32,9 +32,12 @@ user's ISSI as source, which every brew-server already decodes.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Callable, Optional
 
 from . import config as cfgmod
@@ -150,6 +153,10 @@ class DmoPositions:
         # Last beacon per gateway; the dashboard drops old rows, the
         # gateway's position does not change.
         self._beacons: dict[str, Eintrag] = {}
+        # Stored in data/ so a restart does not lose them: a gateway sends
+        # its POS beacon only when it starts, and the dashboard shows only
+        # the newest rows.
+        self._beacons_path: Optional[Path] = None
         self._online: dict[str, bool] = {}
         self._reset_sent()
         # Status for the WebUI
@@ -160,6 +167,44 @@ class DmoPositions:
         self.sent_lip = 0
         self.gateways: dict[str, Gateway] = {}
         self.unresolved: dict[str, str] = {}
+
+    # ------------------------------------------------------- beacons
+
+    def use_store(self, path) -> None:
+        """Keep the gateway beacons in this file and load what is there."""
+        self._beacons_path = Path(path)
+        try:
+            raw = json.loads(self._beacons_path.read_text("utf-8"))
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError) as exc:
+            log.warning("DMO beacons: %s not readable (%s), starting empty",
+                        self._beacons_path, exc)
+            return
+        known = set(Eintrag.__dataclass_fields__)
+        for call, data in (raw.items() if isinstance(raw, dict) else []):
+            try:
+                e = Eintrag(**{k: v for k, v in data.items() if k in known})
+            except (TypeError, AttributeError):
+                continue
+            if e.issi and e.lat is not None and e.lon is not None:
+                self._beacons[call.upper()] = e
+        if self._beacons:
+            log.info("DMO beacons: %d gateway(s) loaded from %s",
+                     len(self._beacons), self._beacons_path)
+
+    def _save_beacons(self) -> None:
+        if self._beacons_path is None:
+            return
+        tmp = self._beacons_path.with_suffix(self._beacons_path.suffix + ".neu")
+        try:
+            tmp.write_text(json.dumps(
+                {c: asdict(e) for c, e in sorted(self._beacons.items())},
+                ensure_ascii=False, indent=1), "utf-8")
+            os.replace(tmp, self._beacons_path)
+        except OSError as exc:
+            log.warning("DMO beacons: could not save %s (%s)",
+                        self._beacons_path, exc)
 
     def _reset_sent(self) -> None:
         self._gw_sent: dict[str, tuple] = {}         # call -> state sent
@@ -268,11 +313,16 @@ class DmoPositions:
         own = (self._own_gateway() or "").strip().upper()
         max_age = cfg.map.max_age_hours * 3600
 
+        neu = False
         for e in seite.eintraege:
             if e.typ == "POS" and _same(e.call, e.gateway):
                 alt = self._beacons.get(e.gateway.upper())
                 if alt is None or (e.zeit or 0) >= (alt.zeit or 0):
+                    if alt != e:
+                        neu = True
                     self._beacons[e.gateway.upper()] = e
+        if neu:
+            self._save_beacons()
         if seite.verbunden is not None:
             for call in set(self._beacons) | {g.call.strip().upper()
                                              for g in cfg.map.gateways}:

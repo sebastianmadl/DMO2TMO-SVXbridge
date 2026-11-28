@@ -4,6 +4,35 @@ Chronologie der Arbeiten. Neueste oben.
 
 ---
 
+## 2026-11-28 — DMO-Gateways auf der Karte offline
+
+### Befund
+- brew-server-Karte: alle DMO-Gateways grau, „heard 26 h ago". Die
+  Gateways selbst waren nie offline - die Bruecke hat seit dem Neustart
+  vom 27.11. (~10:20) keine Gateways mehr gemeldet.
+- Ursache: ISSI und Standort eines Gateways kommen nur aus seiner
+  POS-Bake. Die sendet der Gateway nur beim eigenen Start, und das
+  Dashboard (`create_html.php`) zeigt nur die juengsten Zeilen - am
+  28.11. stand genau **eine** POS-Zeile drin. Die Baken lagen nur im
+  Speicher, der Neustart hat sie geloescht. Log:
+  `not on the map: ... no POS beacon seen yet`.
+- Kein https-/M17-Problem: der Abruf laeuft ueber
+  `http://tetra-reflector.dyndns.org/create_html.php`, der Name zeigt
+  weiter auf 195.26.215.3.
+
+### Erledigt
+- Baken werden in `data/dmo_beacons.json` gespeichert und beim Start
+  geladen (`DmoPositions.use_store`). Kaputte Datei -> leer starten.
+  Test in `selftest.py`.
+
+### Offen
+- Gateways, deren Bake seit dem Neustart nie wieder kam (OE3XWW-T,
+  OE6XAG-R, OE1XCS-T, OE1WBC-R, OE4KMU-R), einmal in den
+  Karten-Einstellungen eintragen oder auf den naechsten Gateway-Neustart
+  warten.
+
+---
+
 ## 2026-11-21 — DMO-Positionen an die brew-server-Karte
 
 ### Erledigt

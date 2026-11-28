@@ -1428,6 +1428,36 @@ def test_dmo_positions():
     _abgelehnt("lip_destination ueber 24 Bit",
                {**raw, "map": {"lip_destination": 1 << 24}})
 
+    # Baken ueberleben einen Neustart (data/dmo_beacons.json): der Gateway
+    # schickt seine POS-Bake nur beim Start, das Dashboard zeigt nur die
+    # juengsten Zeilen.
+    import copy
+    import tempfile
+    from pathlib import Path
+    cfg = cfgmod.from_dict({**raw, "map": {"enabled": True}})   # nur Baken
+    with tempfile.TemporaryDirectory() as tmp:
+        store = Path(tmp) / "dmo_beacons.json"
+        erst = DmoPositions(lambda: cfg, od.DashboardLookup(), lambda: "OE4SXM-R")
+        erst.use_store(store)
+        erst.on_connected(FakeClient({"dmo-position"}))
+        erst.process(seite, "extension", now=jetzt)
+        check("Baken gespeichert", store.is_file() and erst.gateways, str(erst.gateways))
+        ohne_pos = copy.copy(seite)
+        ohne_pos.eintraege = [e for e in seite.eintraege if e.typ != "POS"]
+        zweit = DmoPositions(lambda: cfg, od.DashboardLookup(), lambda: "OE4SXM-R")
+        zweit.use_store(store)
+        fc6 = FakeClient({"dmo-position"})
+        zweit.on_connected(fc6)
+        zweit.process(ohne_pos, "extension", now=jetzt)
+        check("nach Neustart ohne POS im Dashboard: Gateway trotzdem da",
+              set(zweit.gateways) == set(erst.gateways)
+              and any(m["kind"] == "gateway" for m in fc6.out),
+              f"{set(zweit.gateways)} {fc6.out}")
+        store.write_text("kaputt", "utf-8")
+        dritt = DmoPositions(lambda: cfg, od.DashboardLookup(), lambda: "OE4SXM-R")
+        dritt.use_store(store)
+        check("kaputte Datei: leer starten statt abstuerzen", not dritt._beacons)
+
 def main() -> int:
     for test in (
         test_lengths, test_roundtrip, test_traffic_bits, test_sds,

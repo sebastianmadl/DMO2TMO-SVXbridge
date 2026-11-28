@@ -173,6 +173,8 @@ async def amain(path: str) -> int:
     data_dir = os.path.dirname(os.path.abspath(path)) or "."
     # Postfach neben die Config legen, damit ein Neustart es nicht leert.
     router.sdsbox = SdsBox(Path(data_dir) / "sds.json")
+    # Baken der DMO-Gateways (Karte), sonst nach jedem Neustart weg
+    router.dmo_positions.use_store(Path(data_dir) / "dmo_beacons.json")
     state.namebook = IdList(Path(data_dir) / "idlist.sqlite")
     svxlink_dir = os.environ.get("SVXTETRA_SVXLINK_DIR",
                                  os.path.join(data_dir, "svxlink"))
