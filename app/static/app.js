@@ -831,6 +831,7 @@ function mapGwRow(g) {
   row.append(
     feld("gw-call", "Call (OE1XCS-T)", g.call || ""),
     feld("gw-issi", "ISSI (leer = Bake)", g.issi || "", "numeric"),
+    feld("gw-node", "Node am Reflektor (leer = Call)", g.node || ""),
     feld("gw-name", "Name (leer = Comment)", g.name || ""),
     feld("gw-lat", "Breite 48.2082", g.lat, "decimal"),
     feld("gw-lon", "Länge 16.3738", g.lon, "decimal"));
@@ -894,6 +895,24 @@ function mapFound(st) {
   for (const u of st.unresolved || []) {
     zeile(`⚠️ ${u.call}: ${grund(u.why)}`, {call: u.call});
   }
+  // Abgleich: wer ist am Reflektor eingeloggt, und steht er auf der Karte?
+  const nodes = (st.nodes || []).filter((n) => !n.own);
+  if (nodes.length) {
+    const h = document.createElement("div");
+    h.className = "mut"; h.style.cssText = "font-size:12px;margin-top:10px";
+    h.textContent = "Am Reflektor eingeloggt:";
+    box.append(h);
+    for (const n of nodes) {
+      const t = `${n.gateway ? "🟢" : "➖"} ${n.call}` + (n.comment ? ` · ${n.comment}` : "") +
+        (n.gateway ? (n.gateway !== n.call ? ` → Karte als ${n.gateway}` : " → auf der Karte")
+                   : " · nicht auf der Karte");
+      const d = document.createElement("div");
+      d.className = "gw-found";
+      const s = document.createElement("span"); s.textContent = t;
+      d.append(s);
+      box.append(d);
+    }
+  }
 }
 async function loadMap(force) {
   if (!window.MAY.system || !$("map-enabled")) return;
@@ -919,6 +938,7 @@ $("map-save")?.addEventListener("click", async () => {
   const gateways = [...document.querySelectorAll("#map-gws .gw-row")].map((r) => ({
     call: r.querySelector(".gw-call").value,
     issi: r.querySelector(".gw-issi").value,
+    node: r.querySelector(".gw-node").value,
     name: r.querySelector(".gw-name").value,
     lat: r.querySelector(".gw-lat").value,
     lon: r.querySelector(".gw-lon").value,

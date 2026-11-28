@@ -595,6 +595,7 @@ async def api_map(request: web.Request):
                 "call": call,
                 "issi": _int(g.get("issi"), f"Gateway {i + 1} ISSI"),
                 "name": str(g.get("name") or "").strip(),
+                "node": str(g.get("node") or "").strip().upper(),
                 "lat": _opt_float(g.get("lat"), f"Gateway {i + 1} Breite"),
                 "lon": _opt_float(g.get("lon"), f"Gateway {i + 1} Länge"),
             })

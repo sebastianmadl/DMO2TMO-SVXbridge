@@ -282,7 +282,7 @@ dialog .head-row { margin-bottom: 10px; }
 .gw-row .gw-name { grid-column: 1 / -1; }
 .gw-row .gw-del { justify-self: end; }
 @media (min-width: 640px) {
-  .gw-row { grid-template-columns: 1.2fr 1fr 1.6fr 1fr 1fr auto; align-items: center; }
+  .gw-row { grid-template-columns: 1.2fr 1fr 1.2fr 1.6fr 1fr 1fr auto; align-items: center; }
   .gw-row .gw-name { grid-column: auto; }
 }
 .gw-found { display: flex; justify-content: space-between; gap: 8px; align-items: center;

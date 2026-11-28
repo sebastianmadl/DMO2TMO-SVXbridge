@@ -158,6 +158,8 @@ class DmoPositions:
         # the newest rows.
         self._beacons_path: Optional[Path] = None
         self._online: dict[str, bool] = {}
+        # Am Reflektor verbundene Knoten -> Comment (Abgleich in der WebUI)
+        self.reflector_nodes: dict[str, str] = {}
         self._reset_sent()
         # Status for the WebUI
         self.last_poll: Optional[float] = None
@@ -324,9 +326,16 @@ class DmoPositions:
         if neu:
             self._save_beacons()
         if seite.verbunden is not None:
+            self.reflector_nodes = dict(seite.knoten)
+            verbunden = {v.strip().upper() for v in seite.verbunden}
             for call in set(self._beacons) | {g.call.strip().upper()
                                              for g in cfg.map.gateways}:
-                self._online[call] = call in seite.verbunden
+                # Online haengt am Node am Reflektor - der kann anders heissen
+                # als der Call im Lastheard (OE3XWW-R vs. OE3XWW-T).
+                entry = cfg.map.gateway(call)
+                node = (entry.node.strip().upper() if entry and entry.node
+                        else call)
+                self._online[call] = node in verbunden
 
         def fresh(e: Eintrag) -> bool:
             return not max_age or (e.zeit is not None and now - e.zeit <= max_age)
@@ -492,7 +501,22 @@ class DmoPositions:
                 for g in self.gateways.values()],
             "unresolved": [{"call": c, "why": w}
                            for c, w in sorted(self.unresolved.items())],
+            "nodes": self._nodes_status(),
         }
+
+    def _nodes_status(self) -> list[dict]:
+        """Am Reflektor eingeloggte Knoten, abgeglichen mit der Liste."""
+        cfg = self._get_cfg()
+        zugeordnet: dict[str, str] = {}
+        for g in self.gateways.values():
+            entry = cfg.map.gateway(g.call)
+            node = (entry.node.strip().upper() if entry and entry.node
+                    else g.call)
+            zugeordnet[node] = g.call
+        own = (self._own_gateway() or "").strip().upper()
+        return [{"call": call, "comment": comment,
+                 "gateway": zugeordnet.get(call, ""), "own": call == own}
+                for call, comment in sorted(self.reflector_nodes.items())]
 
 
 _WHY = {

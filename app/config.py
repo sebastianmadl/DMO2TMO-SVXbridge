@@ -367,10 +367,14 @@ class MapGateway:
         Gateways am Dashboard.
     name: Anzeigename. Leer = Comment aus dem Dashboard, sonst der Call.
     lat/lon: Standort in Dezimalgrad. Leer = Position aus der POS-Bake.
+    node: Node-Rufzeichen am Reflektor, wenn es anders heisst als der Call
+        im Lastheard (z.B. Call OE3XWW-T, Node OE3XWW-R). Daran haengt der
+        Online-Status. Leer = Call.
     """
     call: str = ""
     issi: int = 0
     name: str = ""
+    node: str = ""
     lat: Optional[float] = None
     lon: Optional[float] = None
 

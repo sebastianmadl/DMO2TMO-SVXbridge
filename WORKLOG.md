@@ -25,6 +25,16 @@ Chronologie der Arbeiten. Neueste oben.
   geladen (`DmoPositions.use_store`). Kaputte Datei -> leer starten.
   Test in `selftest.py`.
 
+- Gateway-Eintrag kennt jetzt `node`: Node-Rufzeichen am Reflektor, wenn
+  es anders heisst als der Call im Lastheard (Moenichkirchen: Lastheard
+  OE3XWW-T, Reflektor OE3XWW-R). Online-Status haengt am Node.
+- Knotentabelle: Zeilen mit state `OFF` / Adresse `Connection` zaehlen
+  nicht mehr als verbunden (vorher war jede Zeile "online").
+- WebUI Karte: Abgleich "Am Reflektor eingeloggt" - welche Knoten
+  verbunden sind und ob/als was sie auf der Karte stehen.
+- Gateways aus dem `.dmo`-Speicher des eigenen brew-servers in die
+  Karten-Einstellungen uebernommen (10 Stueck).
+
 ### Offen
 - Gateways, deren Bake seit dem Neustart nie wieder kam (OE3XWW-T,
   OE6XAG-R, OE1XCS-T, OE1WBC-R, OE4KMU-R), einmal in den

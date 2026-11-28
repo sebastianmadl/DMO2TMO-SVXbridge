@@ -52,8 +52,11 @@ class Eintrag:
 class Dashboard:
     """Alles, was der Parser aus einer Seite holt."""
     eintraege: list[Eintrag] = field(default_factory=list)   # alle Typen
-    # Gateways aus der Tabelle der verbundenen Knoten; None = Tabelle fehlt
+    # Gateways aus der Tabelle der verbundenen Knoten; None = Tabelle fehlt.
+    # Zeilen mit state OFF (Knoten abgemeldet) zaehlen nicht.
     verbunden: Optional[set[str]] = None
+    # Verbundene Knoten -> Comment (fuer den Abgleich in der WebUI)
+    knoten: dict[str, str] = field(default_factory=dict)
 
     def voice(self) -> list[Eintrag]:
         return [e for e in self.eintraege if e.typ == "VOICE"]
@@ -186,9 +189,15 @@ def parse_dashboard(html: str) -> Dashboard:
     eintraege = out.eintraege
     idx = None
     knoten_spalte = None       # Spalte "Gateway" der Knotentabelle
+    state_spalte = addr_spalte = comment_spalte = None
     for zeile in p.zeilen:
         if _knoten_kopf(zeile):
-            knoten_spalte = [c.strip().lower() for c in zeile].index("gateway")
+            namen = [c.strip().lower() for c in zeile]
+            knoten_spalte = namen.index("gateway")
+            state_spalte = namen.index("state") if "state" in namen else None
+            addr_spalte = next((i for i, n in enumerate(namen)
+                                if n.startswith("network")), None)
+            comment_spalte = namen.index("comment") if "comment" in namen else None
             idx = None
             if out.verbunden is None:
                 out.verbunden = set()
@@ -200,7 +209,15 @@ def parse_dashboard(html: str) -> Dashboard:
             continue
         if knoten_spalte is not None:
             if len(zeile) > knoten_spalte and zeile[knoten_spalte].strip():
-                out.verbunden.add(zeile[knoten_spalte].strip().upper())
+                zelle = lambda i: (zeile[i].strip() if i is not None
+                                   and len(zeile) > i else "")
+                # Abgemeldeter Knoten: state "OFF", Adresse "Connection"
+                if (zelle(state_spalte).upper() == "OFF"
+                        or zelle(addr_spalte).lower() == "connection"):
+                    continue
+                call = zeile[knoten_spalte].strip().upper()
+                out.verbunden.add(call)
+                out.knoten[call] = zelle(comment_spalte)
             continue
         if idx is None or len(zeile) <= max(v for v in idx.values() if v is not None):
             continue

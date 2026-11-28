@@ -1219,6 +1219,8 @@ MAP_HTML = """<html><body><table>
 <td>1.2.3.4</td><td></td><td>IDLE</td><td></td><td></td><td>[ 232 ]</td></tr>
 <tr><td>OE4SXM-R</td><td>Bridge</td><td>09.11.2026 01:00:40</td>
 <td>1.2.3.5</td><td></td><td>IDLE</td><td></td><td></td><td>[ 232 ]</td></tr>
+<tr><td>OE4KMU</td><td>Tetra-OE4KMU</td><td>09.11.2026 05:37:23</td>
+<td>Connection</td><td>OFF</td><td>IDLE</td><td>OFFLINE</td><td>OFFLINE</td><td>[ 232 ]</td></tr>
 <tr><th>Gateway</th><th>Comment</th><th>Time sort v</th><th>Call</th><th>Type</th>
 <th>TG</th><th>ID</th><th>-</th><th>POS</th></tr>
 <tr><td>OE1XCS-T</td><td>Tetra-Laaerberg</td><td>09.11.2026 12:50:00</td><td>OE1GKS</td>
@@ -1277,8 +1279,10 @@ def test_dmo_positions():
     check("0/0 ist kein Fix", od.position("E;00000.00;N;0000.00;000;") is None)
 
     seite = od.parse_dashboard(MAP_HTML)
-    check("Knotentabelle gelesen", seite.verbunden == {"OE1XCS-T", "OE4SXM-R"},
+    check("Knotentabelle gelesen, OFF-Zeile zaehlt nicht", seite.verbunden == {"OE1XCS-T", "OE4SXM-R"},
           str(seite.verbunden))
+    check("Comment der Knoten gelesen", seite.knoten.get("OE1XCS-T") == "Tetra-Laaerberg",
+          str(seite.knoten))
     check("GPS/POS/VOICE gelesen", sorted({e.typ for e in seite.eintraege}) ==
           ["GPS", "POS", "VOICE"])
     check("parse() bleibt bei VOICE", all(e.typ == "VOICE" for e in od.parse(MAP_HTML)))
@@ -1457,6 +1461,22 @@ def test_dmo_positions():
         dritt = DmoPositions(lambda: cfg, od.DashboardLookup(), lambda: "OE4SXM-R")
         dritt.use_store(store)
         check("kaputte Datei: leer starten statt abstuerzen", not dritt._beacons)
+
+    # Node am Reflektor heisst anders als der Call im Lastheard
+    cfg_n = cfgmod.from_dict({**raw, "map": {"enabled": True, "gateways": [
+        {"call": "OE3XWW-T", "node": "OE3XWW-R", "issi": 232333,
+         "lat": 47.5105, "lon": 16.0375}]}})
+    dn = DmoPositions(lambda: cfg_n, od.DashboardLookup(), lambda: "OE4SXM-R")
+    dn.on_connected(FakeClient({"dmo-position"}))
+    s_n = copy.copy(seite)
+    s_n.verbunden = {"OE3XWW-R"}
+    dn.process(s_n, "extension", now=jetzt)
+    check("Online ueber den Node, nicht den Call",
+          dn.gateways["OE3XWW-T"].online, str(dn.gateways))
+    s_n.verbunden = {"OE3XWW-T"}
+    dn.process(s_n, "extension", now=jetzt)
+    check("Call allein verbunden, Node nicht: offline",
+          not dn.gateways["OE3XWW-T"].online)
 
 def main() -> int:
     for test in (
