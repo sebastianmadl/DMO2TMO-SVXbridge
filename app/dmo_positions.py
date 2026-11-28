@@ -59,11 +59,22 @@ class Gateway:
     name: str
     online: bool
     source: str             # "settings", "dashboard" or a mix
+    node: str = ""          # callsign at the reflector, "" = call
+
+    def label(self) -> str:
+        """Name on the map: "OE3XWW-R - Tetra-Moenichkirchen"."""
+        rufz = (self.node or self.call).strip().upper()
+        name = (self.name or "").strip()
+        if not name or name.upper() == rufz:
+            return rufz
+        if rufz in name.upper():
+            return name
+        return f"{rufz} - {name}"
 
     def message(self) -> dict:
         return {"kind": "gateway", "issi": self.issi,
                 "lat": round(self.lat, 6), "lon": round(self.lon, 6),
-                "name": self.name, "online": self.online}
+                "name": self.label(), "online": self.online}
 
 
 def _ms(ts: Optional[float]) -> Optional[int]:
@@ -413,7 +424,9 @@ class DmoPositions:
                       else "settings + dashboard")
             out[call] = Gateway(call=call, issi=issi, lat=lat, lon=lon,
                                 name=name, online=self._online.get(call, True),
-                                source=source)
+                                source=source,
+                                node=(entry.node.strip().upper()
+                                      if entry and entry.node else ""))
         for call, why in unresolved.items():
             if self.unresolved.get(call) != why:
                 log.info("DMO gateway %s not on the map: %s", call,

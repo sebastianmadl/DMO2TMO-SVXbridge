@@ -1332,11 +1332,11 @@ def test_dmo_positions():
     gws = {m["issi"]: m for m in fc.out if m["kind"] == "gateway"}
     users = [m for m in fc.out if m["kind"] == "user"]
     check("Gateway aus den Einstellungen: ISSI und Name von dort, Standort aus der Bake",
-          9100001 in gws and gws[9100001]["name"] == "Laaerberg"
+          9100001 in gws and gws[9100001]["name"] == "OE1XCS-T - Laaerberg"
           and abs(gws[9100001]["lat"] - 48.1665) < 1e-6 and gws[9100001]["online"],
           str(gws.get(9100001)))
     check("Gateway nur mit Bake: automatisch, offline (nicht in der Knotenliste)",
-          232601 in gws and gws[232601]["name"] == "Tetra-Schoeckl"
+          232601 in gws and gws[232601]["name"] == "OE6XAG-R - Tetra-Schoeckl"
           and gws[232601]["online"] is False, str(gws.get(232601)))
     check("eigenes Gateway (Bruecke) nicht auf der Karte",
           2329999 not in gws and 232102 not in gws, str(sorted(gws)))
